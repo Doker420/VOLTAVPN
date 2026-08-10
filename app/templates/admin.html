@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container py-3">
+        <!-- Header -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+            <div>
+                <h2 class="hero-title fs-2 text-white mb-1"><i class="bi bi-shield-lock-fill text-volt me-2"></i>Админ-панель VOLTA</h2>
+                <p class="text-white-50 mb-0">Статистика сервиса, пользователи и управление конфигами</p>
+            </div>
+            <form method="POST" action="/admin/collect">
+                <button type="submit" class="btn btn-glow-volt btn-sm px-4 py-2">
+                    <i class="bi bi-arrow-repeat me-1"></i> Запустить сбор конфигов
+                </button>
+            </form>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3">
+                <div class="admin-stat">
+                    <div class="stat-icon" style="background: rgba(34,211,238,0.15); color:#22d3ee;"><i class="bi bi-people-fill"></i></div>
+                    <div class="stat-value text-white">{{ stats.total_users }}</div>
+                    <div class="text-white-50 small">Пользователей</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="admin-stat">
+                    <div class="stat-icon" style="background: rgba(16,185,129,0.15); color:#10b981;"><i class="bi bi-lightning-charge-fill"></i></div>
+                    <div class="stat-value text-white">{{ stats.active_subs }}</div>
+                    <div class="text-white-50 small">Активных подписок</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="admin-stat">
+                    <div class="stat-icon" style="background: rgba(245,158,11,0.15); color:#f59e0b;"><i class="bi bi-cash-coin"></i></div>
+                    <div class="stat-value text-white">{{ stats.revenue_total }} ₽</div>
+                    <div class="text-white-50 small">Доход всего · {{ stats.revenue_month }} ₽ за 30 дн.</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="admin-stat">
+                    <div class="stat-icon" style="background: rgba(139,92,246,0.15); color:#8b5cf6;"><i class="bi bi-hdd-network-fill"></i></div>
+                    <div class="stat-value text-white">{{ stats.working_configs }}</div>
+                    <div class="text-white-50 small">Рабочих из {{ stats.total_configs }} конфигов</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <!-- Signup Trend -->
+            <div class="col-lg-7">
+                <div class="card-glass p-4 h-100">
+                    <h5 class="fw-bold text-white mb-1">Регистрации за 7 дней</h5>
+                    <p class="text-white-50 small mb-4">Новые пользователи по дням</p>
+                    {% set max_count = (stats.signup_trend | map(attribute='count') | max) or 1 %}
+                    <div class="mini-bar mb-2">
+                        {% for d in stats.signup_trend %}
+                        <div class="bar" style="height: {{ (d.count / max_count * 100) if max_count > 0 else 4 }}%;" title="{{ d.date }}: {{ d.count }}"></div>
+                        {% endfor %}
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        {% for d in stats.signup_trend %}
+                        <small class="text-white-50" style="flex:1; text-align:center;">{{ d.date }}</small>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Protocol Breakdown -->
+            <div class="col-lg-5">
+                <div class="card-glass p-4 h-100">
+                    <h5 class="fw-bold text-white mb-1">Рабочие конфиги по протоколам</h5>
+                    <p class="text-white-50 small mb-4">Доля активных серверов</p>
+                    {% for proto, count in stats.proto_stats.items() %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-white-50 small text-uppercase">{{ proto }}</span>
+                            <span class="text-white small fw-semibold">{{ count }}</span>
+                        </div>
+                        <div class="progress" style="height:6px; background:rgba(255,255,255,0.05);">
+                            <div class="progress-bar" style="width: {{ (count / stats.working_configs * 100) if stats.working_configs > 0 else 0 }}%; background: linear-gradient(90deg,#22d3ee,#8b5cf6);"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Recent Users -->
+            <div class="col-lg-6">
+                <div class="card-glass p-4 h-100">
+                    <h5 class="fw-bold text-white mb-3">Последние пользователи</h5>
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr><th>ID</th><th>Логин</th><th>Триал</th><th>Дата</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                {% for u in recent_users %}
+                                <tr>
+                                    <td class="text-white-50">{{ u.id }}</td>
+                                    <td class="text-white">{{ u.username }}{% if u.is_admin %} <span class="badge badge-neon-indigo">admin</span>{% endif %}</td>
+                                    <td>{% if u.is_trial_used %}<span class="text-warning">использован</span>{% else %}<span class="text-emerald">доступен</span>{% endif %}</td>
+                                    <td class="text-white-50">{{ u.created_at.strftime('%d.%m.%Y') }}</td>
+                                    <td>
+                                        <form method="POST" action="/admin/user/{{ u.id }}/toggle" class="m-0">
+                                            <button class="btn btn-glass-secondary btn-sm px-2 py-1" title="Вкл/выкл подписку">
+                                                <i class="bi bi-toggle-on"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="5" class="text-white-50 text-center py-3">Нет пользователей</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Payments -->
+            <div class="col-lg-6">
+                <div class="card-glass p-4 h-100">
+                    <h5 class="fw-bold text-white mb-3">Последние платежи</h5>
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr><th>ID</th><th>Тариф</th><th>Сумма</th><th>Метод</th><th>Статус</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for p in recent_payments %}
+                                <tr>
+                                    <td class="text-white-50">{{ p.id }}</td>
+                                    <td class="text-white">{{ p.plan }}</td>
+                                    <td class="text-white">{{ p.amount }} ₽</td>
+                                    <td class="text-white-50">{{ p.payment_method }}</td>
+                                    <td>
+                                        {% if p.status == 'paid' %}
+                                        <span class="badge badge-neon-emerald">оплачен</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ p.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="5" class="text-white-50 text-center py-3">Нет платежей</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

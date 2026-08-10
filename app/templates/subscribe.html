@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container py-4" style="max-width: 650px;">
+        <div class="card-glass p-4 p-md-5">
+            <div class="d-flex align-items-center gap-3 mb-4">
+                <a href="/dashboard" class="btn btn-glass-secondary btn-sm px-3">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+                <h3 class="fw-bold text-white mb-0">Оформление подписки</h3>
+            </div>
+
+            <!-- Summary Box -->
+            <div class="p-4 rounded-4 bg-dark border border-glass mb-4 d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="badge badge-neon-indigo mb-1">{{ plan.badge }}</span>
+                    <h4 class="fw-bold text-white mb-0">{{ plan.name }}</h4>
+                    <small class="text-white-50">{{ plan.days }} дней нелимитированного доступа</small>
+                </div>
+                <div class="text-end">
+                    <span class="fs-2 fw-bold text-emerald">{{ plan.price if plan.price > 0 else '0' }}</span>
+                    <span class="text-white-50 fs-5">{% if plan.price > 0 %}₽{% else %}₽ (Бесплатно){% endif %}</span>
+                </div>
+            </div>
+
+            {% if plan.price > 0 %}
+            <h5 class="fw-bold text-white mb-3">Выберите способ оплаты:</h5>
+            <div class="d-flex flex-column gap-3 mb-4">
+                <div class="payment-option-card d-flex align-items-center justify-content-between active" id="optPlatega" onclick="selectGateway('platega')">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="fs-3 text-emerald"><i class="bi bi-credit-card-2-front-fill"></i></div>
+                        <div>
+                            <h6 class="fw-bold text-white mb-0">Platega.io</h6>
+                            <small class="text-white-50">Банковские карты (МИР, Visa, Mastercard), СБП</small>
+                        </div>
+                    </div>
+                    <i class="bi bi-check-circle-fill text-emerald fs-4" id="iconPlatega"></i>
+                </div>
+
+                <div class="payment-option-card d-flex align-items-center justify-content-between" id="optCrypto" onclick="selectGateway('cryptobot')">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="fs-3 text-indigo"><i class="bi bi-currency-bitcoin"></i></div>
+                        <div>
+                            <h6 class="fw-bold text-white mb-0">CryptoBot (@CryptoBot)</h6>
+                            <small class="text-white-50">USDT, TON, BTC, Telegram Wallet</small>
+                        </div>
+                    </div>
+                    <i class="bi bi-circle text-white-50 fs-4" id="iconCrypto"></i>
+                </div>
+            </div>
+
+            <button class="btn btn-glow-volt w-100 py-3 mb-3 fs-5" id="btnPay" onclick="submitPayment()">
+                <i class="bi bi-shield-check me-2"></i> Перейти к оплате {{ plan.price }} ₽
+            </button>
+
+            <div id="paymentResult" class="mt-3"></div>
+            {% else %}
+            <form method="GET" action="/subscribe/free_trial">
+                <button type="submit" class="btn btn-glow-volt w-100 py-3 fs-5">
+                    Активировать 30 дней бесплатно
+                </button>
+            </form>
+            {% endif %}
+
+            <div class="text-center mt-4">
+                <small class="text-white-50"><i class="bi bi-lock-fill text-emerald me-1"></i> Безопасный платежный шлюз с моментальной активацией</small>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+{% if plan.price > 0 %}
+<script>
+let selectedMethod = 'platega';
+
+function selectGateway(method) {
+    selectedMethod = method;
+    const optPlatega = document.getElementById('optPlatega');
+    const optCrypto = document.getElementById('optCrypto');
+    const iconPlatega = document.getElementById('iconPlatega');
+    const iconCrypto = document.getElementById('iconCrypto');
+
+    if (method === 'platega') {
+        optPlatega.classList.add('active');
+        optCrypto.classList.remove('active');
+        iconPlatega.className = 'bi bi-check-circle-fill text-emerald fs-4';
+        iconCrypto.className = 'bi bi-circle text-white-50 fs-4';
+    } else {
+        optCrypto.classList.add('active');
+        optPlatega.classList.remove('active');
+        iconCrypto.className = 'bi bi-check-circle-fill text-emerald fs-4';
+        iconPlatega.className = 'bi bi-circle text-white-50 fs-4';
+    }
+}
+
+function submitPayment() {
+    const btn = document.getElementById('btnPay');
+    const resultDiv = document.getElementById('paymentResult');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Создание счета...';
+
+    fetch('/payment/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'plan_id={{ plan_id }}&method=' + selectedMethod
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-shield-check me-2"></i> Перейти к оплате {{ plan.price }} ₽';
+
+        if (data.payment_url) {
+            resultDiv.innerHTML = `
+                <div class="card-glass p-4 text-center">
+                    <div class="badge badge-neon-emerald mb-2">Счет сформирован</div>
+                    <h5 class="fw-bold text-white mb-3">Оплата заказа</h5>
+                    <a href="${data.payment_url}" target="_blank" class="btn btn-glow-primary w-100 py-3 mb-3">
+                        <i class="bi bi-box-arrow-up-right me-2"></i> Перенаправить на страницу оплаты
+                    </a>
+                    <small class="text-white-50 d-block">После завершения оплаты вернитесь в личный кабинет, подписка активируется автоматически.</small>
+                </div>
+            `;
+            // Auto open payment page
+            window.open(data.payment_url, '_blank');
+        } else {
+            resultDiv.innerHTML = '<div class="alert alert-danger">Ошибка при создании платежа</div>';
+        }
+    })
+    .catch(e => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-shield-check me-2"></i> Перейти к оплате {{ plan.price }} ₽';
+        resultDiv.innerHTML = '<div class="alert alert-danger">Ошибка сети</div>';
+    });
+}
+</script>
+{% endif %}
+{% endblock %}

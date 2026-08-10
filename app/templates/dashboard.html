@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container py-3">
+        <!-- Header -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+            <div>
+                <h2 class="hero-title fs-2 text-white mb-1">Подключение</h2>
+                <p class="text-white-50 mb-0">Мгновенный импорт подписки и управление тарифом</p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="#pricing-options" class="btn btn-glow-volt btn-sm px-4 py-2">
+                    <i class="bi bi-plus-circle-fill me-1"></i> Продлить подписку
+                </a>
+            </div>
+        </div>
+
+        {% if sub %}
+        <div class="row g-4 mb-5">
+            <!-- Active Subscription Card -->
+            <div class="col-lg-7">
+                <div class="card-glass p-4 p-md-5 h-100 {% if not sub.is_expired() %}card-highlight{% endif %}">
+                    <div class="d-flex justify-content-between align-items-start mb-4">
+                        <div>
+                            <span class="badge {% if not sub.is_expired() %}badge-neon-emerald{% else %}bg-danger{% endif %} mb-2">
+                                {% if not sub.is_expired() %}🟢 Активна{% else %}🔴 Истекла{% endif %}
+                            </span>
+                            <h3 class="fw-bold text-white mb-1">{{ plans[sub.plan].name if sub.plan in plans else sub.plan }}</h3>
+                            <small class="text-white-50">Создано: {{ sub.created_at.strftime('%d.%m.%Y') }}</small>
+                        </div>
+                        <div class="text-end">
+                            <span class="fs-1 fw-bold {% if not sub.is_expired() %}text-emerald{% else %}text-danger{% endif %}">
+                                {{ sub.days_left() }}
+                            </span>
+                            <span class="d-block text-white-50 small">дней осталось</span>
+                        </div>
+                    </div>
+
+                    <!-- Subscription URL Copy Box -->
+                    <div class="mb-4">
+                        <label class="form-label text-white-50 small fw-medium">Ваша персональная ссылка подписки (для клиентов)</label>
+                        <div class="input-group">
+                            <input type="text" id="subUrlInput" class="form-control copy-field text-white px-3 py-3" value="{{ sub.config_link }}" readonly>
+                            <button class="btn btn-glow-primary px-4" onclick="copySubUrl()">
+                                <i class="bi bi-clipboard me-1" id="copyIcon"></i> <span id="copyText">Копировать</span>
+                            </button>
+                        </div>
+                        <div class="form-text text-white-50 small mt-2">
+                            <i class="bi bi-info-circle text-emerald me-1"></i> Вставьте эту ссылку в Karing, v2rayN или Streisand. Автообновление конфигов происходить автоматически.
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-3 align-items-center pt-3 border-top border-glass">
+                        <div class="d-flex align-items-center gap-2 text-white-50 small">
+                            <i class="bi bi-calendar-check text-emerald fs-5"></i>
+                            Действует до: <strong>{{ sub.end_date.strftime('%d.%m.%Y %H:%M') }}</strong>
+                        </div>
+                        <div class="ms-auto">
+                            <a href="/subscribe/1_month" class="btn btn-glass-secondary btn-sm px-3">
+                                Продлить за 199 ₽
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- QR Code Card -->
+            <div class="col-lg-5">
+                <div class="card-glass p-4 text-center h-100 d-flex flex-column justify-content-center align-items-center">
+                    <h5 class="fw-bold text-white mb-3">QR-код для импорта</h5>
+                    {% if sub.qr_code_path %}
+                    <div class="p-3 bg-white rounded-4 shadow-sm mb-3">
+                        <img src="{{ url_for('static', filename=sub.qr_code_path.replace('qr/', 'qr/')) }}" alt="QR Code" class="img-fluid" style="max-width: 180px;">
+                    </div>
+                    <p class="small text-white-50 mb-0">Отсканируйте камерой смартфона в Karing / Streisand</p>
+                    {% else %}
+                    <i class="bi bi-qr-code-scan display-1 text-white-50 mb-3"></i>
+                    <p class="small text-white-50">QR-код генерируется при активации</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Instant Connect Deep Links -->
+        {% if sub and not sub.is_expired() and deep_links %}
+        <div class="card-glass p-4 p-md-5 mb-5">
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <i class="bi bi-lightning-charge-fill text-volt fs-4"></i>
+                <h4 class="fw-bold text-white mb-0">Мгновенное подключение</h4>
+            </div>
+            <p class="text-white-50 mb-4">Нажмите на своё приложение — подписка импортируется автоматически, без копирования.</p>
+            <div class="connect-grid">
+                <a href="{{ deep_links.karing }}" class="connect-btn"><i class="bi bi-phone text-volt"></i> Karing</a>
+                <a href="{{ deep_links.v2rayng }}" class="connect-btn"><i class="bi bi-android2 text-success"></i> v2rayNG</a>
+                <a href="{{ deep_links.streisand }}" class="connect-btn"><i class="bi bi-apple"></i> Streisand</a>
+                <a href="{{ deep_links.hiddify }}" class="connect-btn"><i class="bi bi-shield-check text-indigo"></i> Hiddify</a>
+                <a href="{{ deep_links.singbox }}" class="connect-btn"><i class="bi bi-box text-warning"></i> sing-box</a>
+                <a href="{{ deep_links.clash }}" class="connect-btn"><i class="bi bi-lightning text-purple"></i> Clash</a>
+            </div>
+            <div class="form-text text-white-50 small mt-3">
+                <i class="bi bi-info-circle text-volt me-1"></i> Если приложение не открылось — установите его из раздела «Приложения» и повторите, либо используйте кнопку «Копировать» выше.
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <!-- Quick Setup Instructions Tab -->
+        <div class="card-glass p-4 p-md-5 mb-5" id="guides">
+            <h4 class="fw-bold text-white mb-4"><i class="bi bi-gear-wide-connected text-emerald me-2"></i> Быстрый запуск подписки</h4>
+            
+            <ul class="nav nav-pills gap-2 mb-4" id="setupTabs">
+                <li class="nav-item">
+                    <button class="nav-link active btn-glass-secondary px-4" data-bs-toggle="tab" data-bs-target="#tabIOS"><i class="bi bi-apple me-1"></i> iOS (iPhone)</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link btn-glass-secondary px-4" data-bs-toggle="tab" data-bs-target="#tabAndroid"><i class="bi bi-android2 me-1"></i> Android</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link btn-glass-secondary px-4" data-bs-toggle="tab" data-bs-target="#tabWindows"><i class="bi bi-windows me-1"></i> Windows</button>
+                </li>
+            </ul>
+
+            <div class="tab-content text-white-50">
+                <div class="tab-pane fade show active" id="tabIOS">
+                    <ol class="lh-lg mb-0">
+                        <li>Установите приложение <a href="https://apps.apple.com/app/karing/id6472431552" target="_blank" class="text-emerald fw-semibold">Karing</a> или <a href="https://apps.apple.com/app/streisand/id6450534064" target="_blank" class="text-indigo fw-semibold">Streisand</a> из App Store.</li>
+                        <li>Нажмите кнопку <strong>«Копировать»</strong> выше или отсканируйте QR-код.</li>
+                        <li>В приложении перейдите в раздел <strong>«Подписки / Subscriptions»</strong> → <strong>«Добавить»</strong>.</li>
+                        <li>Вставьте скопированную ссылку и нажмите <strong>«Подключить»</strong>.</li>
+                    </ol>
+                </div>
+                <div class="tab-pane fade" id="tabAndroid">
+                    <ol class="lh-lg mb-0">
+                        <li>Установите приложение <a href="https://play.google.com/store/apps/details?id=com.v2ray.ang" target="_blank" class="text-emerald fw-semibold">v2rayNG</a> или <strong>Karing</strong> из Google Play / GitHub.</li>
+                        <li>Скопируйте вашу персональную ссылку подписки.</li>
+                        <li>Откройте меню приложения ☰ → <strong>«Группы подписок»</strong> → Нажмите <strong>«+»</strong>.</li>
+                        <li>Вставьте ссылку подписки и выберите <strong>«Обновить подписку»</strong>.</li>
+                    </ol>
+                </div>
+                <div class="tab-pane fade" id="tabWindows">
+                    <ol class="lh-lg mb-0">
+                        <li>Скачайте и запустите <a href="https://github.com/2dust/v2rayN/releases" target="_blank" class="text-indigo fw-semibold">v2rayN</a>.</li>
+                        <li>Перейдите в раздел <strong>«Subscription setting» (Настройка подписки)</strong>.</li>
+                        <li>Нажмите <strong>«Add» (Добавить)</strong> и вставьте вашу ссылку.</li>
+                        <li>Нажмите <strong>«Update subscription without proxy»</strong> в меню подписки.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tariff Renewal Grid -->
+        <div id="pricing-options">
+            <h4 class="fw-bold text-white mb-4"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> Пролонгация и Тарифы</h4>
+            <div class="row g-4">
+                {% for plan_id, plan in plans.items() %}
+                {% if plan_id != 'free_trial' %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="card-glass p-4 d-flex flex-column h-100">
+                        <span class="badge badge-neon-indigo w-auto mb-2">{{ plan.badge }}</span>
+                        <h5 class="fw-bold text-white mb-2">{{ plan.name }}</h5>
+                        <div class="fs-2 fw-bold text-white mb-3">{{ plan.price }} <span class="fs-5 text-white-50">₽</span></div>
+                        <a href="/subscribe/{{ plan_id }}" class="btn btn-glow-primary w-100 mt-auto py-2">
+                            Оплатить {{ plan.price }} ₽
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copySubUrl() {
+    const input = document.getElementById('subUrlInput');
+    input.select();
+    navigator.clipboard.writeText(input.value).then(() => {
+        const copyText = document.getElementById('copyText');
+        const copyIcon = document.getElementById('copyIcon');
+        copyText.innerText = 'Скопировано!';
+        copyIcon.className = 'bi bi-check-lg';
+        setTimeout(() => {
+            copyText.innerText = 'Копировать';
+            copyIcon.className = 'bi bi-clipboard';
+        }, 2500);
+    });
+}
+</script>
+{% endblock %}
