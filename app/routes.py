@@ -17,6 +17,42 @@ from sqlalchemy import func
 # Anti-abuse tunables
 TRIAL_DAYS = 30
 MAX_TRIALS_PER_IP_PER_DAY = 3
+REFERRALS_REQUIRED = 5
+
+
+def _referral_info(user):
+    """Returns referral progress + a prepared Telegram share button URL."""
+    from app.models import Referral
+    from urllib.parse import quote
+
+    if not getattr(user, 'ref_code', None):
+        try:
+            user.ref_code = uuid.uuid4().hex[:10]
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    count = Referral.query.filter_by(referrer_id=user.id).count() if user.ref_code else 0
+    bot_username = current_app.config.get('BOT_USERNAME')
+    if bot_username and user.ref_code:
+        ref_link = f"https://t.me/{bot_username}?start=ref_{user.ref_code}"
+    else:
+        ref_link = f"{get_base_url()}/r/{user.ref_code}" if user.ref_code else get_base_url()
+
+    share_text = (
+        "⚡ Бесплатный быстрый VPN для России — VOLTA! "
+        "Автообновляемые серверы, работает где угодно. Забирай доступ 👇"
+    )
+    share_url = f"https://t.me/share/url?url={quote(ref_link, safe='')}&text={quote(share_text, safe='')}"
+
+    return {
+        'required': REFERRALS_REQUIRED,
+        'count': count,
+        'remaining': max(0, REFERRALS_REQUIRED - count),
+        'ref_link': ref_link,
+        'share_url': share_url,
+        'unlocked': count >= REFERRALS_REQUIRED,
+    }
 
 
 def _client_ip():
@@ -277,8 +313,7 @@ def register_routes(app):
     def tg_login(token):
         """
         Token-based auto-login from the Telegram bot. Opens the dashboard
-        already authenticated. Tokens are per-user and stable (regenerated only
-        if missing), so treat the URL as a secret like the subscription link.
+        already authenticated.
         """
         user = User.query.filter_by(login_token=token).first()
         if not user:
@@ -293,16 +328,9 @@ def register_routes(app):
         sub = Subscription.query.filter_by(user_id=current_user.id).order_by(Subscription.created_at.desc()).first()
 
         # Gate: no anonymous/auto trial. Trial requires a verified Telegram link.
-        if not sub:
-            if not current_user.telegram_verified:
-                flash('Привяжите Telegram, чтобы активировать бесплатный период.', 'info')
-                return redirect(url_for('link_telegram'))
-            if not current_user.is_trial_used:
-                created, err = grant_trial(current_user, telegram_id=current_user.telegram_id, ip=_client_ip())
-                if err:
-                    flash(err, 'warning')
-                else:
-                    sub = created
+        if not sub and not current_user.telegram_verified:
+            flash('Привяжите Telegram, чтобы получить бесплатный период.', 'info')
+            return redirect(url_for('link_telegram'))
 
         # Ensure QR code exists
         if sub and not sub.qr_code_path:
@@ -314,8 +342,10 @@ def register_routes(app):
         deep_links = build_deep_links(sub.config_link) if sub and sub.config_link else {}
         welcome = request.args.get('welcome') == '1'
         countries = _country_breakdown()
+        ref_info = _referral_info(current_user)
         return render_template('dashboard.html', sub=sub, plans=PLANS, configs=working_configs,
-                               deep_links=deep_links, welcome=welcome, countries=countries)
+                               deep_links=deep_links, welcome=welcome, countries=countries,
+                               ref_info=ref_info)
 
     @app.route('/subscribe/<plan_id>')
     @login_required
@@ -332,14 +362,11 @@ def register_routes(app):
                 return redirect(url_for('dashboard'))
 
             if not current_user.telegram_verified:
-                flash('Привяжите Telegram, чтобы активировать бесплатный период.', 'info')
+                flash('Привяжите Telegram, чтобы получить бесплатный период.', 'info')
                 return redirect(url_for('link_telegram'))
 
-            created, err = grant_trial(current_user, telegram_id=current_user.telegram_id, ip=_client_ip())
-            if err:
-                flash(err, 'warning')
-            else:
-                flash('Пробный период на 30 дней активирован!', 'success')
+            # Free trial is unlocked by inviting friends via the bot.
+            flash(f'Бесплатный период открывается после приглашения {REFERRALS_REQUIRED} друзей. Откройте бот → «Пригласить друзей».', 'info')
             return redirect(url_for('dashboard'))
 
         return render_template('subscribe.html', plan=plan, plan_id=plan_id)

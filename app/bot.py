@@ -16,9 +16,13 @@ from app.collector import get_working_configs
 load_dotenv()
 
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+BOT_USERNAME = os.getenv('BOT_USERNAME', '')
 ADMIN_IDS = [int(x) for x in os.getenv('ADMIN_TELEGRAM_IDS', '').replace(' ', '').split(',') if x.isdigit()]
 bot_app = None
 flask_app = None
+
+# Referrals required to unlock the free 30-day trial
+REFERRALS_REQUIRED = 5
 
 PLANS = {
     '1_month': {'name': '1 месяц', 'days': 30, 'price': 199},
@@ -67,8 +71,9 @@ def build_deep_links(sub_url):
 def get_main_keyboard(is_admin=False):
     keyboard = [
         [KeyboardButton("⚡ Подключиться"), KeyboardButton("👤 Моя подписка")],
-        [KeyboardButton("💳 Купить / Продлить"), KeyboardButton("📥 QR / Ссылка")],
-        [KeyboardButton("📊 Статус"), KeyboardButton("❓ Инструкция")],
+        [KeyboardButton("🎁 Пригласить друзей"), KeyboardButton("💳 Купить / Продлить")],
+        [KeyboardButton("📥 QR / Ссылка"), KeyboardButton("📊 Статус")],
+        [KeyboardButton("❓ Инструкция")],
     ]
     if is_admin:
         keyboard.append([KeyboardButton("🛠 Админ-панель")])
@@ -76,7 +81,7 @@ def get_main_keyboard(is_admin=False):
 
 class UserCtx:
     """Detached snapshot of a user, safe to use outside the DB session."""
-    __slots__ = ('id', 'telegram_id', 'username', 'is_admin', 'login_token')
+    __slots__ = ('id', 'telegram_id', 'username', 'is_admin', 'login_token', 'ref_code')
 
     def __init__(self, user):
         self.id = user.id
@@ -84,6 +89,7 @@ class UserCtx:
         self.username = user.username
         self.is_admin = bool(user.is_admin)
         self.login_token = user.login_token
+        self.ref_code = getattr(user, 'ref_code', None)
 
 
 class SubCtx:
@@ -115,11 +121,9 @@ def get_or_create_user(telegram_user):
 
     A Telegram-originated user is considered verified (telegram_verified=True),
     since interacting with the bot proves control of the Telegram account.
-    Trial provisioning is guarded by the anti-abuse ledger (TrialClaim): one
-    trial per telegram_id, ever.
+    NOTE: the free trial is NO LONGER auto-granted here. It is unlocked only
+    after inviting REFERRALS_REQUIRED friends (see referral flow).
     """
-    from app.models import TrialClaim
-
     with flask_app.app_context():
         user = User.query.filter_by(telegram_id=telegram_user.id).first()
         if not user:
@@ -135,32 +139,19 @@ def get_or_create_user(telegram_user):
             user.telegram_verified = True
             db.session.commit()
 
-        # Ensure the user has a login token for one-tap web LK access from the bot
+        # Ensure tokens/codes exist
+        changed = False
         if not user.login_token:
             user.login_token = uuid.uuid4().hex
+            changed = True
+        if not user.ref_code:
+            user.ref_code = uuid.uuid4().hex[:10]
+            changed = True
+        if changed:
             db.session.commit()
 
-        # Provision trial only once per telegram_id (anti-abuse ledger)
         sub = Subscription.query.filter_by(user_id=user.id).order_by(Subscription.created_at.desc()).first()
-        already_claimed = TrialClaim.query.filter_by(telegram_id=telegram_user.id).first() is not None
-        if not sub and not user.is_trial_used and not already_claimed:
-            sub_token = uuid.uuid4().hex
-            config_link = f"{base_url()}/sub/{sub_token}"
-
-            sub = Subscription(
-                user_id=user.id,
-                plan='free_trial',
-                sub_token=sub_token,
-                end_date=datetime.utcnow() + timedelta(days=30),
-                config_link=config_link,
-                is_active=True,
-                payment_status='paid'
-            )
-            db.session.add(sub)
-            user.is_trial_used = True
-            db.session.add(TrialClaim(telegram_id=telegram_user.id, ip=None, user_id=user.id))
-            db.session.commit()
-        elif sub:
+        if sub:
             # Refresh stored link to the current domain if it drifted (e.g. localhost)
             fresh = f"{base_url()}/sub/{sub.sub_token}"
             if sub.config_link != fresh:
@@ -169,6 +160,142 @@ def get_or_create_user(telegram_user):
 
         # Snapshot everything the handlers need BEFORE the session closes
         return UserCtx(user), (SubCtx(sub) if sub else None)
+
+
+def referral_count(user_id):
+    """Number of verified friends invited by this user."""
+    from app.models import Referral
+    return Referral.query.filter_by(referrer_id=user_id).count()
+
+
+def register_referral(referrer_code, invited_tg_user):
+    """
+    Records that `invited_tg_user` was invited by the owner of `referrer_code`.
+    Returns (referrer_user_id|None, is_new_referral: bool).
+    Guards: cannot self-refer, one referral per invited telegram_id.
+    """
+    from app.models import Referral
+
+    with flask_app.app_context():
+        referrer = User.query.filter_by(ref_code=referrer_code).first()
+        if not referrer:
+            return None, False
+        if referrer.telegram_id == invited_tg_user.id:
+            return referrer.id, False  # self-invite ignored
+        # Already counted?
+        existing = Referral.query.filter_by(invited_telegram_id=invited_tg_user.id).first()
+        if existing:
+            return referrer.id, False
+        invited = User.query.filter_by(telegram_id=invited_tg_user.id).first()
+        db.session.add(Referral(
+            referrer_id=referrer.id,
+            invited_telegram_id=invited_tg_user.id,
+            invited_user_id=invited.id if invited else None,
+        ))
+        db.session.commit()
+        return referrer.id, True
+
+
+def try_grant_referral_trial(user_id):
+    """
+    Grants the 30-day trial to user_id if they have >= REFERRALS_REQUIRED
+    referrals and haven't used the trial yet. Returns (granted: bool, sub_link|None).
+    """
+    from app.models import TrialClaim
+
+    with flask_app.app_context():
+        user = User.query.get(user_id)
+        if not user:
+            return False, None
+        if user.is_trial_used:
+            return False, None
+        if referral_count(user.id) < REFERRALS_REQUIRED:
+            return False, None
+        # Anti-abuse: one trial per telegram_id ever
+        if user.telegram_id and TrialClaim.query.filter_by(telegram_id=user.telegram_id).first():
+            return False, None
+
+        sub_token = uuid.uuid4().hex
+        config_link = f"{base_url()}/sub/{sub_token}"
+        qr_path = None
+        try:
+            p = generate_qr_image(config_link, sub_token)
+            qr_path = os.path.relpath(p, os.path.join(flask_app.root_path, 'static')).replace('\\', '/')
+        except Exception:
+            qr_path = None
+        sub = Subscription(
+            user_id=user.id,
+            plan='free_trial',
+            sub_token=sub_token,
+            end_date=datetime.utcnow() + timedelta(days=30),
+            config_link=config_link,
+            qr_code_path=qr_path,
+            is_active=True,
+            payment_status='paid',
+        )
+        db.session.add(sub)
+        user.is_trial_used = True
+        db.session.add(TrialClaim(telegram_id=user.telegram_id, ip=None, user_id=user.id))
+        db.session.commit()
+        return True, config_link
+
+
+def build_referral_link(ref_code):
+    if BOT_USERNAME:
+        return f"https://t.me/{BOT_USERNAME}?start=ref_{ref_code}"
+    return f"{base_url()}/r/{ref_code}"
+
+
+def build_share_button(ref_code):
+    """
+    Inline button that opens Telegram's native share dialog with a prepared
+    text + the referral link. Uses https://t.me/share/url which is allowed.
+    """
+    from urllib.parse import quote
+    ref_link = build_referral_link(ref_code)
+    share_text = (
+        "⚡ Бесплатный быстрый VPN для России — VOLTA!\n"
+        "Автообновляемые серверы, работает где угодно. "
+        "Забирай доступ по моей ссылке 👇"
+    )
+    share_url = f"https://t.me/share/url?url={quote(ref_link, safe='')}&text={quote(share_text, safe='')}"
+    return InlineKeyboardButton("📤 Поделиться с друзьями", url=share_url)
+
+
+async def invite_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Shows referral progress + a prepared share button to unlock the trial."""
+    user = update.effective_user
+    db_user, sub = get_or_create_user(user)
+
+    with flask_app.app_context():
+        fresh = User.query.get(db_user.id)
+        ref_code = fresh.ref_code
+        count = referral_count(fresh.id)
+        trial_used = fresh.is_trial_used
+
+    ref_link = build_referral_link(ref_code)
+    remaining = max(0, REFERRALS_REQUIRED - count)
+    progress = "🟩" * min(count, REFERRALS_REQUIRED) + "⬜️" * remaining
+
+    if sub and not sub.is_expired():
+        head = "🎁 <b>Приглашайте друзей и продлевайте доступ!</b>\n\n"
+    elif trial_used:
+        head = "🎁 <b>Приглашайте друзей!</b>\n\n"
+    else:
+        head = (
+            f"🎁 <b>Получите 30 дней VPN бесплатно!</b>\n\n"
+            f"Пригласите <b>{REFERRALS_REQUIRED} друзей</b> — как только они запустят бота, "
+            f"доступ откроется автоматически.\n\n"
+        )
+
+    msg = (
+        head +
+        f"👥 Приглашено: <b>{count}/{REFERRALS_REQUIRED}</b>\n{progress}\n\n"
+        f"🔗 Ваша ссылка:\n<code>{esc(ref_link)}</code>\n\n"
+        f"Нажмите кнопку ниже — текст для друзей уже готов."
+    )
+    keyboard = InlineKeyboardMarkup([[build_share_button(ref_code)]])
+    await update.message.reply_text(msg, parse_mode='HTML', reply_markup=keyboard, disable_web_page_preview=True)
 
 def generate_qr_image(data, token):
     qr = qrcode.QRCode(version=1, box_size=10, border=3)
@@ -185,59 +312,25 @@ def generate_qr_image(data, token):
 def link_web_account(telegram_user, code):
     """
     Binds a web-registered account (identified by link_code) to this Telegram
-    user and grants the trial once (guarded by TrialClaim). Returns a status
-    string: 'linked', 'already', 'trial_used', 'invalid'.
+    user. Does NOT grant a trial anymore — the trial is unlocked by inviting
+    friends. Returns: 'linked', 'tg_taken', 'invalid'.
     """
-    from app.models import TrialClaim
-
     with flask_app.app_context():
         web_user = User.query.filter_by(link_code=code).first()
         if not web_user:
             return 'invalid'
 
-        # If this telegram already has its own account, do not allow double-claim.
+        # If this telegram already has its own (different) account, block it.
         existing_tg = User.query.filter_by(telegram_id=telegram_user.id).first()
         if existing_tg and existing_tg.id != web_user.id:
-            # Telegram already used elsewhere; block linking to farm trials.
             return 'tg_taken'
-
-        already_claimed = TrialClaim.query.filter_by(telegram_id=telegram_user.id).first() is not None
 
         web_user.telegram_id = telegram_user.id
         web_user.telegram_verified = True
         if not web_user.login_token:
             web_user.login_token = uuid.uuid4().hex
-        db.session.commit()
-
-        sub = Subscription.query.filter_by(user_id=web_user.id).order_by(Subscription.created_at.desc()).first()
-        if sub:
-            return 'already'
-        if web_user.is_trial_used or already_claimed:
-            return 'trial_used'
-
-        sub_token = uuid.uuid4().hex
-        config_link = f"{base_url()}/sub/{sub_token}"
-        qr_path = None
-        try:
-            qr_path = generate_qr_image(config_link, sub_token)
-            # store relative path like the web side expects
-            qr_path = os.path.relpath(qr_path, os.path.join(flask_app.root_path, 'static')).replace('\\', '/')
-        except Exception:
-            qr_path = None
-
-        sub = Subscription(
-            user_id=web_user.id,
-            plan='free_trial',
-            sub_token=sub_token,
-            end_date=datetime.utcnow() + timedelta(days=30),
-            config_link=config_link,
-            qr_code_path=qr_path,
-            is_active=True,
-            payment_status='paid',
-        )
-        db.session.add(sub)
-        web_user.is_trial_used = True
-        db.session.add(TrialClaim(telegram_id=telegram_user.id, ip=None, user_id=web_user.id))
+        if not web_user.ref_code:
+            web_user.ref_code = uuid.uuid4().hex[:10]
         db.session.commit()
         return 'linked'
 
@@ -245,46 +338,74 @@ def link_web_account(telegram_user, code):
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
 
-    # Handle deep-link account binding: /start link_<code>
     args = context.args if hasattr(context, 'args') else None
+
+    # Handle deep-link account binding: /start link_<code>
     if args and args[0].startswith('link_'):
         code = args[0][len('link_'):]
         result = link_web_account(user, code)
+        db_user, sub = get_or_create_user(user)
+        is_admin = user.id in ADMIN_IDS or (db_user and db_user.is_admin)
         if result == 'invalid':
             await update.message.reply_text("⚠️ Код привязки недействителен. Откройте сайт → «Привязать Telegram» ещё раз.")
         elif result == 'tg_taken':
-            await update.message.reply_text("⛔ Этот Telegram уже привязан к другому аккаунту. Один Telegram — один бесплатный период.")
-        elif result in ('already', 'trial_used'):
-            db_user, sub = get_or_create_user(user)
-            is_admin = user.id in ADMIN_IDS or (db_user and db_user.is_admin)
-            await update.message.reply_text(
-                "✅ Telegram привязан! Аккаунт уже имеет подписку или бесплатный период был использован ранее.",
-                reply_markup=get_main_keyboard(is_admin)
-            )
+            await update.message.reply_text("⛔ Этот Telegram уже привязан к другому аккаунту.")
         else:  # linked
-            db_user, sub = get_or_create_user(user)
-            is_admin = user.id in ADMIN_IDS or (db_user and db_user.is_admin)
-            link = sub_link(sub) if sub else base_url()
-            await update.message.reply_text(
-                "🎉 <b>Telegram привязан, бесплатный период на 30 дней активирован!</b>\n\n"
-                f"🔗 <b>Ссылка подписки:</b>\n<code>{esc(link)}</code>\n\n"
-                "Нажмите «⚡ Подключиться» для импорта в один тап.",
-                parse_mode='HTML', reply_markup=get_main_keyboard(is_admin)
-            )
+            with flask_app.app_context():
+                fresh = User.query.get(db_user.id)
+                ref_code = fresh.ref_code
+                count = referral_count(fresh.id)
+            if sub:
+                await update.message.reply_text(
+                    "✅ <b>Telegram привязан!</b> Аккаунт уже имеет активную подписку.",
+                    parse_mode='HTML', reply_markup=get_main_keyboard(is_admin)
+                )
+            else:
+                remaining = max(0, REFERRALS_REQUIRED - count)
+                await update.message.reply_text(
+                    "✅ <b>Telegram привязан!</b>\n\n"
+                    f"🎁 Чтобы получить 30 дней бесплатно, пригласите <b>{REFERRALS_REQUIRED} друзей</b> "
+                    f"(осталось {remaining}). Нажмите кнопку ниже — текст уже готов.",
+                    parse_mode='HTML',
+                    reply_markup=InlineKeyboardMarkup([[build_share_button(ref_code)]])
+                )
         return
+
+    # Handle referral deep-link: /start ref_<code>
+    referred_by = None
+    if args and args[0].startswith('ref_'):
+        referred_by = args[0][len('ref_'):]
 
     db_user, sub = get_or_create_user(user)
     is_admin = user.id in ADMIN_IDS or (db_user and db_user.is_admin)
 
+    # Record referral and possibly unlock the referrer's trial
+    if referred_by:
+        referrer_id, is_new = register_referral(referred_by, user)
+        if referrer_id and is_new:
+            granted, ref_sub_link = try_grant_referral_trial(referrer_id)
+            await _notify_referrer(referrer_id, granted, ref_sub_link)
+
     if not sub:
+        with flask_app.app_context():
+            fresh = User.query.get(db_user.id)
+            ref_code = fresh.ref_code
+            count = referral_count(fresh.id)
+        remaining = max(0, REFERRALS_REQUIRED - count)
         msg = (
             f"👋 <b>Привет, {esc(user.first_name)}!</b>\n\n"
             f"⚡ <b>VOLTA</b> — молниеносный VPN с автоподпиской для РФ!\n\n"
-            f"ℹ️ Бесплатный период уже был использован на вашем аккаунте.\n"
-            f"Оформите подписку всего за <b>199 ₽/мес</b>, чтобы продолжить."
+            f"🎁 <b>Получите 30 дней бесплатно</b> — пригласите <b>{REFERRALS_REQUIRED} друзей</b>.\n"
+            f"👥 Уже приглашено: <b>{count}/{REFERRALS_REQUIRED}</b> (осталось {remaining}).\n\n"
+            f"Нажмите кнопку ниже — текст для друзей уже готов. "
+            f"Или оформите подписку за <b>199 ₽/мес</b> без приглашений."
         )
-        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("💳 Оформить подписку", callback_data="buy_menu")]])
-        await update.message.reply_text(msg, parse_mode='HTML', reply_markup=keyboard)
+        keyboard = InlineKeyboardMarkup([
+            [build_share_button(ref_code)],
+            [InlineKeyboardButton("💳 Оформить подписку", callback_data="buy_menu")],
+        ])
+        await update.message.reply_text(msg, parse_mode='HTML', reply_markup=keyboard,
+                                        disable_web_page_preview=True)
         return
 
     days_left = sub.days_left()
@@ -296,10 +417,35 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"⚡ <b>VOLTA</b> — молниеносный VPN с автоподпиской для РФ!\n\n"
         f"📌 <b>Ваш статус:</b> {status_text}\n"
         f"🔗 <b>Ссылка подписки:</b>\n<code>{esc(link)}</code>\n\n"
-        f"🎁 Вам начислен <b>бесплатный период 30 дней</b>!\n"
         f"Нажмите «⚡ Подключиться» для импорта в один тап или используйте меню ниже."
     )
     await update.message.reply_text(msg, parse_mode='HTML', reply_markup=get_main_keyboard(is_admin))
+
+
+async def _notify_referrer(referrer_id, granted, ref_sub_link):
+    """DM the referrer about a new invite and trial unlock, if the bot can reach them."""
+    with flask_app.app_context():
+        ref = User.query.get(referrer_id)
+        if not ref or not ref.telegram_id:
+            return
+        count = referral_count(ref.id)
+        chat_id = ref.telegram_id
+    try:
+        if granted:
+            text = (
+                "🎉 <b>Готово! Вы пригласили достаточно друзей.</b>\n\n"
+                "Бесплатный период на 30 дней активирован!\n"
+                f"🔗 <b>Ссылка подписки:</b>\n<code>{esc(ref_sub_link)}</code>"
+            )
+        else:
+            remaining = max(0, REFERRALS_REQUIRED - count)
+            text = (
+                f"👤 +1 друг присоединился! Прогресс: <b>{count}/{REFERRALS_REQUIRED}</b>.\n"
+                + (f"Осталось пригласить: <b>{remaining}</b>." if remaining else "")
+            )
+        await bot_app.bot.send_message(chat_id=chat_id, text=text, parse_mode='HTML')
+    except Exception as e:
+        print(f"[Bot] referrer notify failed: {e}")
 
 async def my_sub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -588,6 +734,8 @@ async def handle_text_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         await connect_command(update, context)
     elif text == "👤 Моя подписка":
         await my_sub_command(update, context)
+    elif text == "🎁 Пригласить друзей":
+        await invite_command(update, context)
     elif text == "💳 Купить / Продлить":
         await buy_menu_command(update, context)
     elif text == "📥 QR / Ссылка":
@@ -612,6 +760,7 @@ def init_bot(app):
     bot_app.add_handler(CommandHandler("start", start_command))
     bot_app.add_handler(CommandHandler("sub", my_sub_command))
     bot_app.add_handler(CommandHandler("connect", connect_command))
+    bot_app.add_handler(CommandHandler("invite", invite_command))
     bot_app.add_handler(CommandHandler("buy", buy_menu_command))
     bot_app.add_handler(CommandHandler("stats", stats_command))
     bot_app.add_handler(CommandHandler("admin", admin_command))

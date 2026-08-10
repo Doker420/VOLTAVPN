@@ -40,6 +40,7 @@ def _run_lightweight_migrations():
     for col_name, ddl in (
         ('telegram_verified', 'ALTER TABLE user ADD COLUMN telegram_verified BOOLEAN DEFAULT 0'),
         ('link_code', 'ALTER TABLE user ADD COLUMN link_code VARCHAR(32)'),
+        ('ref_code', 'ALTER TABLE user ADD COLUMN ref_code VARCHAR(32)'),
         ('reg_ip', 'ALTER TABLE user ADD COLUMN reg_ip VARCHAR(64)'),
     ):
         if col_name not in user_cols:

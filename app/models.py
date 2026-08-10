@@ -9,6 +9,7 @@ class User(UserMixin, db.Model):
     telegram_id = db.Column(db.BigInteger, unique=True, nullable=True)
     telegram_verified = db.Column(db.Boolean, default=False)
     link_code = db.Column(db.String(32), unique=True, nullable=True)
+    ref_code = db.Column(db.String(32), unique=True, nullable=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=True)
     password_hash = db.Column(db.String(256), nullable=True)
@@ -84,6 +85,18 @@ class TrialClaim(db.Model):
     telegram_id = db.Column(db.BigInteger, index=True, nullable=True)
     ip = db.Column(db.String(64), index=True, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Referral(db.Model):
+    """
+    Tracks who invited whom. A referral counts only when the invited user
+    verifies their Telegram, so it cannot be farmed with empty accounts.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    referrer_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, nullable=False)
+    invited_telegram_id = db.Column(db.BigInteger, unique=True, nullable=False)
+    invited_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 @login_manager.user_loader

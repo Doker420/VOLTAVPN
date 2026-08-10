@@ -64,8 +64,7 @@
 
         {% if sub %}
         <div class="row g-4 mb-5">
-            <!-- Active Subscription Card -->
-            <div class="col-lg-7">
+            <!-- Active Subscription Card -->            <div class="col-lg-7">
                 <div class="card-glass p-4 p-md-5 h-100 {% if not sub.is_expired() %}card-highlight{% endif %}">
                     <div class="d-flex justify-content-between align-items-start mb-4">
                         <div>
@@ -151,7 +150,52 @@
         {% endif %}
         {% endif %}
 
-        <!-- Servers by country -->
+        <!-- Referral / unlock free trial -->
+        {% if ref_info %}
+        <div class="card-glass p-4 p-md-5 mb-5" id="referral">
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <i class="bi bi-gift-fill text-volt fs-4"></i>
+                <h4 class="fw-bold text-white mb-0">
+                    {% if sub %}Приглашайте друзей{% else %}Получите 30 дней бесплатно{% endif %}
+                </h4>
+            </div>
+            {% if not sub %}
+            <p class="text-white-50 mb-3">
+                Пригласите <b>{{ ref_info.required }} друзей</b> — как только они запустят бота по вашей ссылке,
+                бесплатный период на 30 дней активируется автоматически.
+            </p>
+            {% else %}
+            <p class="text-white-50 mb-3">Делитесь VOLTA с друзьями по своей персональной ссылке.</p>
+            {% endif %}
+
+            <!-- Progress -->
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="flex-grow-1">
+                    <div class="progress" style="height:10px; background:rgba(255,255,255,0.06);">
+                        <div class="progress-bar" role="progressbar"
+                             style="width: {{ (ref_info.count / ref_info.required * 100) if ref_info.required else 0 }}%; background: linear-gradient(90deg,#22d3ee,#8b5cf6);"></div>
+                    </div>
+                </div>
+                <span class="badge badge-neon-emerald">{{ ref_info.count }}/{{ ref_info.required }}</span>
+            </div>
+
+            <div class="input-group mb-3">
+                <input type="text" id="refLinkInput" class="form-control copy-field text-white px-3 py-3" value="{{ ref_info.ref_link }}" readonly>
+                <button class="btn btn-glass-secondary px-4" onclick="copyRefLink()">
+                    <i class="bi bi-clipboard me-1"></i><span id="refCopyText">Копировать</span>
+                </button>
+            </div>
+
+            <a href="{{ ref_info.share_url }}" target="_blank" class="btn btn-glow-volt w-100 py-3">
+                <i class="bi bi-send-fill me-2"></i> Поделиться с друзьями (текст готов)
+            </a>
+            {% if not sub and ref_info.remaining > 0 %}
+            <p class="small text-white-50 text-center mt-3 mb-0">
+                Осталось пригласить: <b>{{ ref_info.remaining }}</b>. Доступ откроется автоматически.
+            </p>
+            {% endif %}
+        </div>
+        {% endif %}
         {% if countries %}
         <div class="card-glass p-4 p-md-5 mb-5">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
@@ -263,6 +307,16 @@ function copySubUrl() {
             copyText.innerText = 'Копировать';
             copyIcon.className = 'bi bi-clipboard';
         }, 2500);
+    });
+}
+
+function copyRefLink() {
+    const input = document.getElementById('refLinkInput');
+    if (!input) return;
+    input.select();
+    navigator.clipboard.writeText(input.value).then(() => {
+        const t = document.getElementById('refCopyText');
+        if (t) { t.innerText = 'Скопировано!'; setTimeout(() => { t.innerText = 'Копировать'; }, 2500); }
     });
 }
 </script>
