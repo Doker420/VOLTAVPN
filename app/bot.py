@@ -1,5 +1,6 @@
 import os
 import uuid
+import html
 import qrcode
 import threading
 from datetime import datetime, timedelta
@@ -27,6 +28,29 @@ PLANS = {
     '12_months': {'name': '12 месяцев', 'days': 360, 'price': 2268},
 }
 
+PLAN_LABELS = {
+    'free_trial': 'Бесплатный период',
+    '1_month': '1 месяц',
+    '2_months': '2 месяца',
+    '3_months': '3 месяца',
+    '6_months': '6 месяцев',
+    '12_months': '12 месяцев',
+}
+
+def esc(value):
+    """Escape a value for Telegram HTML parse mode."""
+    return html.escape(str(value), quote=False)
+
+def base_url():
+    return flask_app.config.get('WEBHOOK_URL', 'http://localhost:5000').rstrip('/')
+
+def sub_link(sub):
+    """
+    Always build the subscription URL from the CURRENT WEBHOOK_URL, so links
+    never show a stale 'localhost' persisted before the domain was configured.
+    """
+    return f"{base_url()}/sub/{sub.sub_token}"
+
 def build_deep_links(sub_url):
     """One-tap import deep links for popular clients."""
     from urllib.parse import quote
@@ -50,24 +74,78 @@ def get_main_keyboard(is_admin=False):
         keyboard.append([KeyboardButton("🛠 Админ-панель")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
+class UserCtx:
+    """Detached snapshot of a user, safe to use outside the DB session."""
+    __slots__ = ('id', 'telegram_id', 'username', 'is_admin', 'login_token')
+
+    def __init__(self, user):
+        self.id = user.id
+        self.telegram_id = user.telegram_id
+        self.username = user.username
+        self.is_admin = bool(user.is_admin)
+        self.login_token = user.login_token
+
+
+class SubCtx:
+    """Detached snapshot of a subscription, safe to use outside the DB session."""
+    __slots__ = ('id', 'plan', 'sub_token', 'config_link', 'end_date',
+                 'is_active', '_days_left', '_expired')
+
+    def __init__(self, sub):
+        self.id = sub.id
+        self.plan = sub.plan
+        self.sub_token = sub.sub_token
+        self.config_link = sub.config_link
+        self.end_date = sub.end_date
+        self.is_active = sub.is_active
+        self._days_left = sub.days_left()
+        self._expired = sub.is_expired()
+
+    def days_left(self):
+        return self._days_left
+
+    def is_expired(self):
+        return self._expired
+
+
 def get_or_create_user(telegram_user):
+    """
+    Returns (UserCtx, SubCtx|None) — plain snapshots detached from the ORM
+    session, so callers can safely read attributes after the context closes.
+
+    A Telegram-originated user is considered verified (telegram_verified=True),
+    since interacting with the bot proves control of the Telegram account.
+    Trial provisioning is guarded by the anti-abuse ledger (TrialClaim): one
+    trial per telegram_id, ever.
+    """
+    from app.models import TrialClaim
+
     with flask_app.app_context():
         user = User.query.filter_by(telegram_id=telegram_user.id).first()
         if not user:
             user = User(
                 telegram_id=telegram_user.id,
+                telegram_verified=True,
                 username=telegram_user.username or f"user_{telegram_user.id}",
                 email=None
             )
             db.session.add(user)
             db.session.commit()
+        elif not user.telegram_verified:
+            user.telegram_verified = True
+            db.session.commit()
 
-        # Check or provision subscription
+        # Ensure the user has a login token for one-tap web LK access from the bot
+        if not user.login_token:
+            user.login_token = uuid.uuid4().hex
+            db.session.commit()
+
+        # Provision trial only once per telegram_id (anti-abuse ledger)
         sub = Subscription.query.filter_by(user_id=user.id).order_by(Subscription.created_at.desc()).first()
-        if not sub and not user.is_trial_used:
+        already_claimed = TrialClaim.query.filter_by(telegram_id=telegram_user.id).first() is not None
+        if not sub and not user.is_trial_used and not already_claimed:
             sub_token = uuid.uuid4().hex
-            base_url = flask_app.config.get('WEBHOOK_URL', 'http://localhost:5000').rstrip('/')
-            config_link = f"{base_url}/sub/{sub_token}"
+            config_link = f"{base_url()}/sub/{sub_token}"
 
             sub = Subscription(
                 user_id=user.id,
@@ -80,8 +158,17 @@ def get_or_create_user(telegram_user):
             )
             db.session.add(sub)
             user.is_trial_used = True
+            db.session.add(TrialClaim(telegram_id=telegram_user.id, ip=None, user_id=user.id))
             db.session.commit()
-        return user, sub
+        elif sub:
+            # Refresh stored link to the current domain if it drifted (e.g. localhost)
+            fresh = f"{base_url()}/sub/{sub.sub_token}"
+            if sub.config_link != fresh:
+                sub.config_link = fresh
+                db.session.commit()
+
+        # Snapshot everything the handlers need BEFORE the session closes
+        return UserCtx(user), (SubCtx(sub) if sub else None)
 
 def generate_qr_image(data, token):
     qr = qrcode.QRCode(version=1, box_size=10, border=3)
@@ -95,60 +182,153 @@ def generate_qr_image(data, token):
     img.save(filepath)
     return filepath
 
+def link_web_account(telegram_user, code):
+    """
+    Binds a web-registered account (identified by link_code) to this Telegram
+    user and grants the trial once (guarded by TrialClaim). Returns a status
+    string: 'linked', 'already', 'trial_used', 'invalid'.
+    """
+    from app.models import TrialClaim
+
+    with flask_app.app_context():
+        web_user = User.query.filter_by(link_code=code).first()
+        if not web_user:
+            return 'invalid'
+
+        # If this telegram already has its own account, do not allow double-claim.
+        existing_tg = User.query.filter_by(telegram_id=telegram_user.id).first()
+        if existing_tg and existing_tg.id != web_user.id:
+            # Telegram already used elsewhere; block linking to farm trials.
+            return 'tg_taken'
+
+        already_claimed = TrialClaim.query.filter_by(telegram_id=telegram_user.id).first() is not None
+
+        web_user.telegram_id = telegram_user.id
+        web_user.telegram_verified = True
+        if not web_user.login_token:
+            web_user.login_token = uuid.uuid4().hex
+        db.session.commit()
+
+        sub = Subscription.query.filter_by(user_id=web_user.id).order_by(Subscription.created_at.desc()).first()
+        if sub:
+            return 'already'
+        if web_user.is_trial_used or already_claimed:
+            return 'trial_used'
+
+        sub_token = uuid.uuid4().hex
+        config_link = f"{base_url()}/sub/{sub_token}"
+        qr_path = None
+        try:
+            qr_path = generate_qr_image(config_link, sub_token)
+            # store relative path like the web side expects
+            qr_path = os.path.relpath(qr_path, os.path.join(flask_app.root_path, 'static')).replace('\\', '/')
+        except Exception:
+            qr_path = None
+
+        sub = Subscription(
+            user_id=web_user.id,
+            plan='free_trial',
+            sub_token=sub_token,
+            end_date=datetime.utcnow() + timedelta(days=30),
+            config_link=config_link,
+            qr_code_path=qr_path,
+            is_active=True,
+            payment_status='paid',
+        )
+        db.session.add(sub)
+        web_user.is_trial_used = True
+        db.session.add(TrialClaim(telegram_id=telegram_user.id, ip=None, user_id=web_user.id))
+        db.session.commit()
+        return 'linked'
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+
+    # Handle deep-link account binding: /start link_<code>
+    args = context.args if hasattr(context, 'args') else None
+    if args and args[0].startswith('link_'):
+        code = args[0][len('link_'):]
+        result = link_web_account(user, code)
+        if result == 'invalid':
+            await update.message.reply_text("⚠️ Код привязки недействителен. Откройте сайт → «Привязать Telegram» ещё раз.")
+        elif result == 'tg_taken':
+            await update.message.reply_text("⛔ Этот Telegram уже привязан к другому аккаунту. Один Telegram — один бесплатный период.")
+        elif result in ('already', 'trial_used'):
+            db_user, sub = get_or_create_user(user)
+            is_admin = user.id in ADMIN_IDS or (db_user and db_user.is_admin)
+            await update.message.reply_text(
+                "✅ Telegram привязан! Аккаунт уже имеет подписку или бесплатный период был использован ранее.",
+                reply_markup=get_main_keyboard(is_admin)
+            )
+        else:  # linked
+            db_user, sub = get_or_create_user(user)
+            is_admin = user.id in ADMIN_IDS or (db_user and db_user.is_admin)
+            link = sub_link(sub) if sub else base_url()
+            await update.message.reply_text(
+                "🎉 <b>Telegram привязан, бесплатный период на 30 дней активирован!</b>\n\n"
+                f"🔗 <b>Ссылка подписки:</b>\n<code>{esc(link)}</code>\n\n"
+                "Нажмите «⚡ Подключиться» для импорта в один тап.",
+                parse_mode='HTML', reply_markup=get_main_keyboard(is_admin)
+            )
+        return
+
     db_user, sub = get_or_create_user(user)
     is_admin = user.id in ADMIN_IDS or (db_user and db_user.is_admin)
 
     if not sub:
         msg = (
-            f"👋 **Привет, {user.first_name}!**\n\n"
-            f"⚡ **VOLTA** — молниеносный VPN с автоподпиской для РФ!\n\n"
+            f"👋 <b>Привет, {esc(user.first_name)}!</b>\n\n"
+            f"⚡ <b>VOLTA</b> — молниеносный VPN с автоподпиской для РФ!\n\n"
             f"ℹ️ Бесплатный период уже был использован на вашем аккаунте.\n"
-            f"Оформите подписку всего за **199 ₽/мес**, чтобы продолжить."
+            f"Оформите подписку всего за <b>199 ₽/мес</b>, чтобы продолжить."
         )
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("💳 Оформить подписку", callback_data="buy_menu")]])
-        await update.message.reply_text(msg, parse_mode='Markdown', reply_markup=keyboard)
+        await update.message.reply_text(msg, parse_mode='HTML', reply_markup=keyboard)
         return
 
     days_left = sub.days_left()
     status_text = f"🟢 Активна ({days_left} дн.)" if not sub.is_expired() else "🔴 Истекла"
+    link = sub_link(sub)
 
     msg = (
-        f"👋 **Привет, {user.first_name}!**\n\n"
-        f"⚡ **VOLTA** — молниеносный VPN с автоподпиской для РФ!\n\n"
-        f"📌 **Ваш статус:** {status_text}\n"
-        f"🔗 **Ссылка подписки:** `{sub.config_link}`\n\n"
-        f"🎁 Вам начислен **бесплатный период 30 дней**!\n"
-        f"Нажмите **«⚡ Подключиться»** для импорта в один тап или используйте меню ниже."
+        f"👋 <b>Привет, {esc(user.first_name)}!</b>\n\n"
+        f"⚡ <b>VOLTA</b> — молниеносный VPN с автоподпиской для РФ!\n\n"
+        f"📌 <b>Ваш статус:</b> {status_text}\n"
+        f"🔗 <b>Ссылка подписки:</b>\n<code>{esc(link)}</code>\n\n"
+        f"🎁 Вам начислен <b>бесплатный период 30 дней</b>!\n"
+        f"Нажмите «⚡ Подключиться» для импорта в один тап или используйте меню ниже."
     )
-    await update.message.reply_text(msg, parse_mode='Markdown', reply_markup=get_main_keyboard(is_admin))
+    await update.message.reply_text(msg, parse_mode='HTML', reply_markup=get_main_keyboard(is_admin))
 
 async def my_sub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     db_user, sub = get_or_create_user(user)
+    is_admin = user.id in ADMIN_IDS or (db_user and db_user.is_admin)
 
     if not sub or sub.is_expired():
         msg = (
-            f"❌ **Ваша подписка истекла!**\n\n"
-            f"Для возобновления работы автообновляемых VPN-конфигураций продлите подписку всего за **199 ₽/мес**."
+            f"❌ <b>Ваша подписка истекла!</b>\n\n"
+            f"Для возобновления работы автообновляемых VPN-конфигураций продлите подписку всего за <b>199 ₽/мес</b>."
         )
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("💳 Оформить подписку", callback_data="buy_menu")]
         ])
-        await update.message.reply_text(msg, parse_mode='Markdown', reply_markup=keyboard)
+        await update.message.reply_text(msg, parse_mode='HTML', reply_markup=keyboard)
         return
 
     days_left = sub.days_left()
+    link = sub_link(sub)
+    plan_name = PLAN_LABELS.get(sub.plan, sub.plan)
     msg = (
-        f"🛡️ **Ваша текущая подписка**\n\n"
-        f"• **Тариф:** {sub.plan}\n"
-        f"• **Осталось:** {days_left} дн.\n"
-        f"• **Дата окончания:** {sub.end_date.strftime('%d.%m.%Y %H:%M')}\n\n"
-        f"🔗 **Персональная ссылка подписки:**\n`{sub.config_link}`\n\n"
+        f"🛡️ <b>Ваша текущая подписка</b>\n\n"
+        f"• <b>Тариф:</b> {esc(plan_name)}\n"
+        f"• <b>Осталось:</b> {days_left} дн.\n"
+        f"• <b>Дата окончания:</b> {sub.end_date.strftime('%d.%m.%Y %H:%M')}\n\n"
+        f"🔗 <b>Персональная ссылка подписки:</b>\n<code>{esc(link)}</code>\n\n"
         f"💡 Скопируйте ссылку и вставьте в клиент (Karing, v2rayN, Streisand, NekoBox, Hiddify) в раздел «Подписки»."
     )
-    await update.message.reply_text(msg, parse_mode='Markdown', reply_markup=get_main_keyboard())
+    await update.message.reply_text(msg, parse_mode='HTML', reply_markup=get_main_keyboard(is_admin))
 
 async def qr_link_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -158,19 +338,25 @@ async def qr_link_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Ваша подписка истекла! Нажмите «💳 Купить / Продлить» для продления.")
         return
 
-    qr_path = generate_qr_image(sub.config_link, sub.sub_token)
+    link = sub_link(sub)
+    qr_path = generate_qr_image(link, sub.sub_token)
 
     caption = (
-        f"📱 **QR-код вашей подписки**\n\n"
-        f"🔗 `{sub.config_link}`\n\n"
-        f"Откройте **Karing**, **Streisand** или **v2rayN** и отсканируйте QR для моментального импорта!"
+        f"📱 <b>QR-код вашей подписки</b>\n\n"
+        f"🔗 <code>{esc(link)}</code>\n\n"
+        f"Откройте <b>Karing</b>, <b>Streisand</b> или <b>v2rayN</b> и отсканируйте QR для моментального импорта!"
     )
     with open(qr_path, 'rb') as photo:
-        await update.message.reply_photo(photo=photo, caption=caption, parse_mode='Markdown')
+        await update.message.reply_photo(photo=photo, caption=caption, parse_mode='HTML')
 
 
 async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """One-tap instant connect: sends deep links for popular clients."""
+    """
+    Instant connect. Telegram inline-button URLs only allow http(s)/tg schemes,
+    so custom client schemes (karing://, hiddify://, ...) cannot be buttons.
+    We send an https button to the site LK and list the one-tap links as
+    tappable text inside the message.
+    """
     user = update.effective_user
     db_user, sub = get_or_create_user(user)
 
@@ -182,20 +368,33 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    links = build_deep_links(sub.config_link)
+    link = sub_link(sub)
+    links = build_deep_links(link)
+    # Auto-login link to the site LK (token-based), so the button opens the
+    # dashboard already logged in.
+    if db_user and db_user.login_token:
+        dashboard_url = f"{base_url()}/tg-login/{db_user.login_token}"
+    else:
+        dashboard_url = f"{base_url()}/dashboard"
+
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📱 Karing (iOS/Android)", url=links['karing'])],
-        [InlineKeyboardButton("🤖 v2rayNG (Android)", url=links['v2rayng'])],
-        [InlineKeyboardButton("🍏 Streisand (iOS)", url=links['streisand'])],
-        [InlineKeyboardButton("🛡 Hiddify (все ОС)", url=links['hiddify'])],
-        [InlineKeyboardButton("📦 sing-box", url=links['singbox'])],
+        [InlineKeyboardButton("🌐 Открыть личный кабинет", url=dashboard_url)],
     ])
     msg = (
-        "⚡ **Мгновенное подключение**\n\n"
-        "Выберите ваше приложение — подписка импортируется автоматически, без копирования.\n\n"
-        "Если приложение ещё не установлено, поставьте его через «❓ Инструкция» и повторите."
+        "⚡ <b>Мгновенное подключение</b>\n\n"
+        "Откройте <b>личный кабинет</b> на сайте — там подключение в один тап "
+        "и QR-код для всех приложений.\n\n"
+        f"🔗 <b>Ваша ссылка подписки:</b>\n<code>{esc(link)}</code>\n\n"
+        "Или откройте напрямую в приложении (нажмите на нужную ссылку):\n"
+        f"• <a href=\"{esc(links['karing'])}\">Karing</a>\n"
+        f"• <a href=\"{esc(links['v2rayng'])}\">v2rayNG</a>\n"
+        f"• <a href=\"{esc(links['streisand'])}\">Streisand</a>\n"
+        f"• <a href=\"{esc(links['hiddify'])}\">Hiddify</a>\n"
+        f"• <a href=\"{esc(links['singbox'])}\">sing-box</a>"
     )
-    await update.message.reply_text(msg, parse_mode='Markdown', reply_markup=keyboard)
+    await update.message.reply_text(
+        msg, parse_mode='HTML', reply_markup=keyboard, disable_web_page_preview=True
+    )
 
 
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -219,15 +418,15 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         working = Config.query.filter_by(is_working=True).count()
 
     msg = (
-        "🛠 **Админ-панель VOLTA**\n\n"
-        f"👥 Пользователей: **{total_users}**\n"
-        f"⚡ Активных подписок: **{active_subs}**\n"
-        f"💰 Доход всего: **{revenue_total} ₽**\n"
-        f"📈 Доход за 30 дней: **{revenue_month} ₽**\n\n"
-        f"🌐 Конфигов: **{working}** рабочих из **{total_configs}**\n\n"
-        f"🔗 Полная панель: {flask_app.config.get('WEBHOOK_URL', 'http://localhost:5000').rstrip('/')}/admin"
+        "🛠 <b>Админ-панель VOLTA</b>\n\n"
+        f"👥 Пользователей: <b>{total_users}</b>\n"
+        f"⚡ Активных подписок: <b>{active_subs}</b>\n"
+        f"💰 Доход всего: <b>{revenue_total} ₽</b>\n"
+        f"📈 Доход за 30 дней: <b>{revenue_month} ₽</b>\n\n"
+        f"🌐 Конфигов: <b>{working}</b> рабочих из <b>{total_configs}</b>\n\n"
+        f"🔗 Полная панель: {esc(base_url())}/admin"
     )
-    await update.message.reply_text(msg, parse_mode='Markdown')
+    await update.message.reply_text(msg, parse_mode='HTML')
 
 async def buy_menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -239,15 +438,15 @@ async def buy_menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     msg = (
-        "💎 **Выберите подходящий тариф:**\n\n"
+        "💎 <b>Выберите подходящий тариф:</b>\n\n"
         "• Все протоколы (VLESS / Trojan / Shadowsocks / Hysteria2 / VMess / Tuic)\n"
         "• Автоматическая проверка каждый час\n"
         "• Работает во всех регионах РФ"
     )
     if update.callback_query:
-        await update.callback_query.edit_message_text(msg, parse_mode='Markdown', reply_markup=reply_markup)
+        await update.callback_query.edit_message_text(msg, parse_mode='HTML', reply_markup=reply_markup)
     else:
-        await update.message.reply_text(msg, parse_mode='Markdown', reply_markup=reply_markup)
+        await update.message.reply_text(msg, parse_mode='HTML', reply_markup=reply_markup)
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with flask_app.app_context():
@@ -258,28 +457,28 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         hy2 = Config.query.filter_by(is_working=True, protocol='hysteria2').count()
 
     msg = (
-        "📊 **Мониторинг серверов VOLTA**\n\n"
-        f"✅ **Всего рабочих конфигов:** {total}\n"
-        f"⚡ **VLESS:** {vless}\n"
-        f"🚀 **Shadowsocks:** {ss}\n"
-        f"🔒 **Trojan:** {trojan}\n"
-        f"🔥 **Hysteria2:** {hy2}\n\n"
+        "📊 <b>Мониторинг серверов VOLTA</b>\n\n"
+        f"✅ <b>Всего рабочих конфигов:</b> {total}\n"
+        f"⚡ <b>VLESS:</b> {vless}\n"
+        f"🚀 <b>Shadowsocks:</b> {ss}\n"
+        f"🔒 <b>Trojan:</b> {trojan}\n"
+        f"🔥 <b>Hysteria2:</b> {hy2}\n\n"
         "🔄 Автообновление и перепроверка пинга выполняются каждый час."
     )
-    await update.message.reply_text(msg, parse_mode='Markdown')
+    await update.message.reply_text(msg, parse_mode='HTML')
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
-        "📖 **Инструкция по подключению:**\n\n"
-        "1️⃣ **Скопируйте вашу ссылку подписки** через меню «📥 QR / Ссылка».\n"
-        "2️⃣ **Установите клиент для вашего устройства:**\n"
-        "   • **iOS / iPhone:** [Karing](https://apps.apple.com/app/karing/id6472431552) или [Streisand](https://apps.apple.com/app/streisand/id6450534064)\n"
-        "   • **Android:** [Karing](https://play.google.com/store/apps/details?id=com.v2ray.ang) или [NekoBox](https://github.com/MatsuriDayo/NekoBoxForAndroid)\n"
-        "   • **Windows:** [v2rayN](https://github.com/2dust/v2rayN)\n"
-        "3️⃣ **Добавьте подписку:** Вставьте вашу ссылку или отсканируйте QR-код.\n"
-        "4️⃣ **Нажмите «Обновить подписку»** и выберите самый быстрый сервер!"
+        "📖 <b>Инструкция по подключению:</b>\n\n"
+        "1️⃣ <b>Скопируйте вашу ссылку подписки</b> через меню «📥 QR / Ссылка».\n"
+        "2️⃣ <b>Установите клиент для вашего устройства:</b>\n"
+        "   • <b>iOS / iPhone:</b> <a href=\"https://apps.apple.com/app/karing/id6472431552\">Karing</a> или <a href=\"https://apps.apple.com/app/streisand/id6450534064\">Streisand</a>\n"
+        "   • <b>Android:</b> <a href=\"https://play.google.com/store/apps/details?id=com.v2ray.ang\">Karing</a> или <a href=\"https://github.com/MatsuriDayo/NekoBoxForAndroid\">NekoBox</a>\n"
+        "   • <b>Windows:</b> <a href=\"https://github.com/2dust/v2rayN\">v2rayN</a>\n"
+        "3️⃣ <b>Добавьте подписку:</b> вставьте вашу ссылку или отсканируйте QR-код.\n"
+        "4️⃣ <b>Нажмите «Обновить подписку»</b> и выберите самый быстрый сервер!"
     )
-    await update.message.reply_text(msg, parse_mode='Markdown', disable_web_page_preview=True)
+    await update.message.reply_text(msg, parse_mode='HTML', disable_web_page_preview=True)
 
 async def plan_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -302,8 +501,8 @@ async def plan_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(
-        f"Тариф: **{plan['name']}** ({plan['price']} ₽)\nВыберите способ оплаты:",
-        parse_mode='Markdown',
+        f"Тариф: <b>{esc(plan['name'])}</b> ({plan['price']} ₽)\nВыберите способ оплаты:",
+        parse_mode='HTML',
         reply_markup=reply_markup
     )
 
@@ -323,13 +522,24 @@ async def payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     db_user, sub = get_or_create_user(user)
 
-    with flask_app.app_context():
-        if method == 'platega':
-            payment_url, ext_id = create_platega_payment(db_user, plan, sub.id)
-            method_name = "Platega.io"
-        else:
-            payment_url, ext_id = create_cryptobot_payment(db_user, plan, sub.id)
-            method_name = "CryptoBot"
+    payment_url = None
+    try:
+        with flask_app.app_context():
+            if method == 'platega':
+                payment_url, ext_id = create_platega_payment(db_user, plan, sub.id if sub else 0)
+                method_name = "Platega.io"
+            else:
+                payment_url, ext_id = create_cryptobot_payment(db_user, plan, sub.id if sub else 0)
+                method_name = "CryptoBot"
+    except Exception as e:
+        print(f"[Bot] Payment creation error: {e}")
+
+    if not payment_url:
+        await query.edit_message_text(
+            "⚠️ Платёжный шлюз временно недоступен. Попробуйте позже или выберите другой способ оплаты.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="buy_menu")]])
+        )
+        return
 
     keyboard = [
         [InlineKeyboardButton(f"🔗 Оплатить {plan['price']} ₽ ({method_name})", url=payment_url)],
@@ -339,12 +549,12 @@ async def payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await query.edit_message_text(
-        f"💳 **Счет на оплату сформирован!**\n\n"
-        f"• **Тариф:** {plan['name']}\n"
-        f"• **Сумма:** {plan['price']} ₽\n"
-        f"• **Шлюз:** {method_name}\n\n"
-        f"После оплаты нажмите **«Проверить оплату»** для моментального продления подписки.",
-        parse_mode='Markdown',
+        f"💳 <b>Счёт на оплату сформирован!</b>\n\n"
+        f"• <b>Тариф:</b> {esc(plan['name'])}\n"
+        f"• <b>Сумма:</b> {plan['price']} ₽\n"
+        f"• <b>Шлюз:</b> {esc(method_name)}\n\n"
+        f"После оплаты нажмите «Проверить оплату» для моментального продления подписки.",
+        parse_mode='HTML',
         reply_markup=reply_markup
     )
 
@@ -362,11 +572,12 @@ async def check_pay_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         if status == 'paid':
             db_user, sub = get_or_create_user(user)
+            link = sub_link(sub) if sub else base_url()
             await query.edit_message_text(
-                f"🎉 **Оплата успешно подтверждена!**\n\n"
-                f"Ваша подписка продлена. Осталось дней: **{sub.days_left()}**\n\n"
-                f"🔗 **Ссылка подписки:**\n`{sub.config_link}`",
-                parse_mode='Markdown'
+                f"🎉 <b>Оплата успешно подтверждена!</b>\n\n"
+                f"Ваша подписка продлена. Осталось дней: <b>{sub.days_left() if sub else 0}</b>\n\n"
+                f"🔗 <b>Ссылка подписки:</b>\n<code>{esc(link)}</code>",
+                parse_mode='HTML'
             )
         else:
             await query.answer("⌛ Оплата еще не поступила. Попробуйте через 1-2 минуты.", show_alert=True)
@@ -412,9 +623,20 @@ def init_bot(app):
     bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_buttons))
 
     def run_bot():
+        # Each thread needs its own asyncio event loop; the Flask thread's loop
+        # is not available here, so create and set a dedicated one.
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
             print("[Bot] Telegram Bot polling started successfully.")
-            bot_app.run_polling(allowed_updates=Update.ALL_TYPES)
+            # stop_signals=None is required: run_polling() otherwise installs OS
+            # signal handlers (set_wakeup_fd), which only work in the main thread.
+            bot_app.run_polling(
+                allowed_updates=Update.ALL_TYPES,
+                close_loop=False,
+                stop_signals=None,
+            )
         except Exception as e:
             print(f"[Bot] Polling error: {e}")
 

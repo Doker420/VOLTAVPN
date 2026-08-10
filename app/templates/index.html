@@ -22,9 +22,9 @@
                             <i class="bi bi-lightning-charge-fill me-2"></i> Мгновенное подключение
                         </a>
                     {% else %}
-                        <button class="btn btn-glow-volt btn-lg px-4 py-3" data-bs-toggle="modal" data-bs-target="#loginModal">
+                        <a href="/quick-start" class="btn btn-glow-volt btn-lg px-4 py-3">
                             <i class="bi bi-gift-fill me-2"></i> 30 дней бесплатно
-                        </button>
+                        </a>
                     {% endif %}
                     <a href="#pricing" class="btn btn-glass-secondary btn-lg px-4 py-3">
                         <i class="bi bi-grid-fill me-2"></i> Тарифы
@@ -96,6 +96,35 @@
     </div>
 </section>
 
+<!-- Servers by country -->
+{% if countries %}
+<section class="py-5">
+    <div class="container">
+        <div class="text-center mb-4" style="max-width: 640px; margin: 0 auto;">
+            <div class="badge-neon-indigo mb-2">География серверов</div>
+            <h2 class="hero-title fs-2 text-white">Серверы по всему миру</h2>
+            <p class="text-white-50">Автопроверка пинга каждый час. В подписке узлы сгруппированы по странам и отсортированы по скорости.</p>
+        </div>
+        <div class="row g-3">
+            {% for c in countries %}
+            <div class="col-6 col-md-4 col-lg-3">
+                <div class="card-glass p-3 h-100">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="fs-3">{{ c.flag }}</span>
+                        <span class="badge badge-neon-emerald">{{ c.count }} сер.</span>
+                    </div>
+                    <div class="fw-semibold text-white">{{ c.name }}</div>
+                    <div class="small text-white-50">
+                        {% if c.avg_ping is not none %}<i class="bi bi-speedometer2 me-1 text-volt"></i>~{{ c.avg_ping }} ms{% else %}—{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
 <!-- Pricing Section -->
 <section id="pricing" class="py-5">
     <div class="container py-4">
@@ -144,9 +173,13 @@
                             {% if plan_id == 'free_trial' %}Активировать 30 дней{% else %}Купить подписку{% endif %}
                         </a>
                     {% else %}
-                        <button class="btn {% if plan_id == 'free_trial' %}btn-glow-volt{% else %}btn-glow-primary{% endif %} w-100 py-3" data-bs-toggle="modal" data-bs-target="#loginModal">
-                            {% if plan_id == 'free_trial' %}Активировать 30 дней{% else %}Купить подписку{% endif %}
+                        {% if plan_id == 'free_trial' %}
+                        <a href="/quick-start" class="btn btn-glow-volt w-100 py-3">Активировать 30 дней</a>
+                        {% else %}
+                        <button class="btn btn-glow-primary w-100 py-3" data-bs-toggle="modal" data-bs-target="#loginModal">
+                            Купить подписку
                         </button>
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>
@@ -201,12 +234,12 @@
                     <li class="nav-item">
                         <button class="nav-link active btn-glass-secondary px-4 py-2" data-bs-toggle="pill" data-bs-target="#loginTab">Вход</button>
                     </li>
-                    <li class="nav-item">
-                        <button class="nav-link btn-glass-secondary px-4 py-2" data-bs-toggle="pill" data-bs-target="#registerTab">Регистрация</button>
+                   <!--> <li class="nav-item">
+                     <button class="nav-link btn-glass-secondary px-4 py-2" data-bs-toggle="pill" data-bs-target="#registerTab">Регистрация</button>
                     </li>
                 </ul>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
+            </div><-->
             <div class="modal-body">
                 <div class="tab-content pt-3">
                     <!-- Login Form -->
@@ -234,15 +267,14 @@
                                 <label class="form-label text-white-50 small">Email (необязательно)</label>
                                 <input type="email" name="email" class="form-control copy-field text-white px-3 py-2" placeholder="name@example.com">
                             </div>
-                            <div class="mb-2">
+                            <div class="mb-3">
                                 <label class="form-label text-white-50 small">Пароль</label>
                                 <input type="password" name="password" class="form-control copy-field text-white px-3 py-2" required placeholder="••••••••">
                             </div>
-                            <div class="mb-4">
-                                <label class="form-label text-white-50 small">Telegram ID (для привязки бота)</label>
-                                <input type="text" name="telegram_id" class="form-control copy-field text-white px-3 py-2" placeholder="123456789">
+                            <div class="alert card-glass border-0 text-white-50 small mb-3">
+                                <i class="bi bi-telegram text-volt me-1"></i> После регистрации нужно привязать Telegram — только так выдаётся бесплатный период (защита от накрутки).
                             </div>
-                            <button type="submit" class="btn btn-glow-primary w-100 py-3">Зарегистрироваться (30 дн. бесплатно)</button>
+                            <button type="submit" class="btn btn-glow-primary w-100 py-3">Создать аккаунт и привязать Telegram</button>
                         </form>
                     </div>
                 </div>

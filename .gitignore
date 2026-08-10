@@ -25,6 +25,8 @@ htmlcov/
 
 # Generated QR codes
 app/static/qr/
+static/qr/
+/static/
 
 # Collected configs (auto-generated hourly)
 configs/*.txt

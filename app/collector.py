@@ -42,6 +42,74 @@ PROTOCOL_LABELS = {
 MAX_WORKERS = 60
 TCP_TIMEOUT = 2.5
 
+# ISO country code -> (Russian name, flag emoji). Covers the common VPN locations.
+COUNTRY_NAMES = {
+    'RU': ('Россия', '🇷🇺'), 'DE': ('Германия', '🇩🇪'), 'NL': ('Нидерланды', '🇳🇱'),
+    'FR': ('Франция', '🇫🇷'), 'GB': ('Великобритания', '🇬🇧'), 'US': ('США', '🇺🇸'),
+    'FI': ('Финляндия', '🇫🇮'), 'SE': ('Швеция', '🇸🇪'), 'PL': ('Польша', '🇵🇱'),
+    'CA': ('Канада', '🇨🇦'), 'JP': ('Япония', '🇯🇵'), 'SG': ('Сингапур', '🇸🇬'),
+    'HK': ('Гонконг', '🇭🇰'), 'TR': ('Турция', '🇹🇷'), 'AE': ('ОАЭ', '🇦🇪'),
+    'KZ': ('Казахстан', '🇰🇿'), 'LV': ('Латвия', '🇱🇻'), 'LT': ('Литва', '🇱🇹'),
+    'EE': ('Эстония', '🇪🇪'), 'CH': ('Швейцария', '🇨🇭'), 'AT': ('Австрия', '🇦🇹'),
+    'IT': ('Италия', '🇮🇹'), 'ES': ('Испания', '🇪🇸'), 'NO': ('Норвегия', '🇳🇴'),
+    'DK': ('Дания', '🇩🇰'), 'CZ': ('Чехия', '🇨🇿'), 'RO': ('Румыния', '🇷🇴'),
+    'UA': ('Украина', '🇺🇦'), 'MD': ('Молдова', '🇲🇩'), 'IN': ('Индия', '🇮🇳'),
+    'KR': ('Корея', '🇰🇷'), 'AM': ('Армения', '🇦🇲'), 'GE': ('Грузия', '🇬🇪'),
+    'BG': ('Болгария', '🇧🇬'), 'HU': ('Венгрия', '🇭🇺'), 'IE': ('Ирландия', '🇮🇪'),
+    'IL': ('Израиль', '🇮🇱'), 'AU': ('Австралия', '🇦🇺'), 'BR': ('Бразилия', '🇧🇷'),
+}
+
+
+def country_flag(code):
+    if not code:
+        return '🏳️'
+    entry = COUNTRY_NAMES.get(code.upper())
+    if entry:
+        return entry[1]
+    # Derive regional-indicator flag from any 2-letter code
+    cc = code.upper()
+    if len(cc) == 2 and cc.isalpha():
+        return ''.join(chr(0x1F1E6 + ord(ch) - ord('A')) for ch in cc)
+    return '🏳️'
+
+
+def country_name(code):
+    if not code:
+        return 'Неизвестно'
+    entry = COUNTRY_NAMES.get(code.upper())
+    return entry[0] if entry else code.upper()
+
+
+# In-process cache: host -> country_code, to avoid repeated GeoIP lookups
+_GEO_CACHE = {}
+
+
+def resolve_country(host):
+    """
+    Resolves an ISO country code for a host (IP or domain) using a free GeoIP
+    endpoint, with per-host caching. Returns an uppercase 2-letter code or None.
+    Network failures degrade gracefully to None.
+    """
+    if not host:
+        return None
+    key = host.strip('[]')
+    if key in _GEO_CACHE:
+        return _GEO_CACHE[key]
+
+    code = None
+    try:
+        # Resolve domain to IP first (ip-api accepts domains too, but IP is cheaper)
+        ip = socket.gethostbyname(key)
+        resp = requests.get(f"http://ip-api.com/json/{ip}?fields=status,countryCode", timeout=5)
+        data = resp.json()
+        if data.get('status') == 'success':
+            code = (data.get('countryCode') or '').upper() or None
+    except Exception:
+        code = None
+
+    _GEO_CACHE[key] = code
+    return code
+
 
 def detect_protocol(line):
     line_str = line.strip()
@@ -111,16 +179,18 @@ def test_tcp_connection(host, port, timeout=TCP_TIMEOUT):
         return None
 
 
-def rename_node(content, protocol, index, latency=None):
+def rename_node(content, protocol, index, latency=None, code=None):
     """
     Auto-generates a branded node title for a config URI.
     Rewrites the fragment (#name) to something like:
-        ⚡ VOLTA | VLESS RU #1 · 82ms
+        🇩🇪 VOLTA | Германия · VLESS · 82ms
     This is what makes it an auto-GENERATED subscription rather than a raw copy.
     """
     label = PROTOCOL_LABELS.get(protocol, protocol.upper())
+    flag = country_flag(code)
+    cname = country_name(code)
     ping = f" · {int(latency)}ms" if latency is not None else ""
-    title = f"⚡ {BRAND} | {label} RU #{index}{ping}"
+    title = f"{flag} {BRAND} | {cname} · {label}{ping}"
     encoded_title = quote(title)
 
     try:
@@ -158,6 +228,9 @@ def _probe(entry):
     line_str, protocol, source_url = entry
     host, port = extract_host_port(line_str, protocol)
     latency = test_tcp_connection(host, port)
+    is_working = latency is not None
+    # Only geo-locate reachable hosts (saves lookups on dead nodes)
+    code = resolve_country(host) if is_working else None
     return {
         'content': line_str,
         'protocol': protocol,
@@ -165,7 +238,9 @@ def _probe(entry):
         'host': host,
         'port': port,
         'latency': latency,
-        'is_working': latency is not None,
+        'is_working': is_working,
+        'country_code': code,
+        'country': country_name(code) if code else None,
     }
 
 
@@ -222,6 +297,9 @@ def collect_configs():
                 existing.latency_ms = r['latency']
                 existing.host = r['host']
                 existing.port = r['port']
+                if r['country_code']:
+                    existing.country_code = r['country_code']
+                    existing.country = r['country']
                 existing.checked_at = datetime.utcnow()
                 updated_count += 1
             else:
@@ -231,6 +309,8 @@ def collect_configs():
                     host=r['host'],
                     port=r['port'],
                     latency_ms=r['latency'],
+                    country=r['country'],
+                    country_code=r['country_code'],
                     is_working=r['is_working'],
                     source_url=r['source_url'],
                     collected_at=datetime.utcnow(),
@@ -246,25 +326,30 @@ def collect_configs():
 
 
 def get_working_configs(protocol=None, limit=200):
-    """Returns active, tested configs sorted by latency (fastest first)."""
+    """Returns active, tested configs sorted by country, then latency (fastest first)."""
     from flask import current_app
     with current_app.app_context():
         query = Config.query.filter_by(is_working=True)
         if protocol:
             query = query.filter_by(protocol=protocol)
-        return query.order_by(Config.latency_ms.asc().nullslast(), Config.checked_at.desc()).limit(limit).all()
+        return query.order_by(
+            Config.country.asc().nullslast(),
+            Config.latency_ms.asc().nullslast(),
+            Config.checked_at.desc(),
+        ).limit(limit).all()
 
 
 def build_branded_lines(configs):
     """
     Auto-generate branded, renamed node lines from Config rows,
-    numbered per protocol and annotated with measured latency.
+    grouped by country and annotated with country flag + measured latency.
     """
     counters = {}
     lines = []
     for c in configs:
         counters[c.protocol] = counters.get(c.protocol, 0) + 1
-        lines.append(rename_node(c.content, c.protocol, counters[c.protocol], c.latency_ms))
+        code = getattr(c, 'country_code', None)
+        lines.append(rename_node(c.content, c.protocol, counters[c.protocol], c.latency_ms, code))
     return lines
 
 

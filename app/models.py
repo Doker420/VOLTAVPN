@@ -7,11 +7,15 @@ import uuid
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     telegram_id = db.Column(db.BigInteger, unique=True, nullable=True)
+    telegram_verified = db.Column(db.Boolean, default=False)
+    link_code = db.Column(db.String(32), unique=True, nullable=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=True)
     password_hash = db.Column(db.String(256), nullable=True)
     is_admin = db.Column(db.Boolean, default=False)
     is_trial_used = db.Column(db.Boolean, default=False)
+    login_token = db.Column(db.String(64), unique=True, nullable=True)
+    reg_ip = db.Column(db.String(64), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     subscriptions = db.relationship('Subscription', backref='user', lazy=True)
 
@@ -51,6 +55,8 @@ class Config(db.Model):
     host = db.Column(db.String(255), nullable=True)
     port = db.Column(db.Integer, nullable=True)
     latency_ms = db.Column(db.Float, nullable=True)
+    country = db.Column(db.String(64), nullable=True)
+    country_code = db.Column(db.String(4), nullable=True)
     is_working = db.Column(db.Boolean, default=True)
     source_url = db.Column(db.String(500), nullable=True)
     collected_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -67,6 +73,18 @@ class Payment(db.Model):
     status = db.Column(db.String(50), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     paid_at = db.Column(db.DateTime, nullable=True)
+
+
+class TrialClaim(db.Model):
+    """
+    Anti-abuse ledger: records every free-trial grant keyed by telegram_id and
+    registration IP so trials cannot be farmed across many accounts.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    telegram_id = db.Column(db.BigInteger, index=True, nullable=True)
+    ip = db.Column(db.String(64), index=True, nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 @login_manager.user_loader
 def load_user(user_id):

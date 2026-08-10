@@ -19,10 +19,11 @@ from app.collector import (
 
 
 class FakeConfig:
-    def __init__(self, protocol, content, latency_ms=None):
+    def __init__(self, protocol, content, latency_ms=None, country_code=None):
         self.protocol = protocol
         self.content = content
         self.latency_ms = latency_ms
+        self.country_code = country_code
 
 
 def test_detect_protocol_vless():
@@ -65,7 +66,7 @@ def test_extract_host_port_vmess_base64():
 
 def test_rename_node_vless_sets_fragment():
     original = "vless://uuid@example.com:443?type=tcp#OldName"
-    renamed = rename_node(original, 'vless', 1, latency=82.0)
+    renamed = rename_node(original, 'vless', 1, latency=82.0, code='DE')
     # base URI preserved
     assert renamed.startswith("vless://uuid@example.com:443?type=tcp#")
     # brand present in the (url-encoded) fragment
@@ -78,11 +79,12 @@ def test_rename_node_vless_sets_fragment():
 def test_rename_node_vmess_sets_ps_field():
     payload = {"add": "vmess.example.com", "port": "10086", "id": "abc", "ps": "OldName"}
     b64 = base64.b64encode(json.dumps(payload).encode()).decode()
-    renamed = rename_node("vmess://" + b64, 'vmess', 3)
+    renamed = rename_node("vmess://" + b64, 'vmess', 3, latency=50, code='NL')
     assert renamed.startswith("vmess://")
     decoded = json.loads(base64.b64decode(renamed[8:] + "===").decode('utf-8', errors='ignore'))
     assert "VOLTA" in decoded['ps']
-    assert "#3" in decoded['ps']
+    # country name should appear in the title
+    assert "Нидерланды" in decoded['ps']
     # host preserved
     assert decoded['add'] == 'vmess.example.com'
 

@@ -1,9 +1,9 @@
 from flask import render_template, redirect, url_for, flash, request, jsonify, current_app, Response, abort
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db
-from app.models import User, Subscription, Config, Payment
-from app.payment import create_platega_payment, create_cryptobot_payment, check_payment_status
-from app.collector import generate_subscription_feed, get_working_configs
+from app.models import User, Subscription, Config, Payment, TrialClaim
+from app.payment import create_platega_payment, create_cryptobot_payment, check_payment_status, activate_paid_subscription
+from app.collector import generate_subscription_feed, get_working_configs, country_flag, country_name
 import qrcode
 import os
 import uuid
@@ -11,6 +11,100 @@ import base64
 from functools import wraps
 from urllib.parse import quote
 from datetime import datetime, timedelta
+from sqlalchemy import func
+
+
+# Anti-abuse tunables
+TRIAL_DAYS = 30
+MAX_TRIALS_PER_IP_PER_DAY = 3
+
+
+def _client_ip():
+    """Best-effort real client IP behind a reverse proxy (Nginx sets XFF)."""
+    xff = request.headers.get('X-Forwarded-For', '')
+    if xff:
+        return xff.split(',')[0].strip()
+    return request.remote_addr or '0.0.0.0'
+
+
+def _ip_trial_count(ip, hours=24):
+    if not ip:
+        return 0
+    since = datetime.utcnow() - timedelta(hours=hours)
+    return TrialClaim.query.filter(TrialClaim.ip == ip, TrialClaim.created_at >= since).count()
+
+
+def _telegram_already_claimed(telegram_id):
+    if not telegram_id:
+        return False
+    return TrialClaim.query.filter_by(telegram_id=telegram_id).first() is not None
+
+
+def grant_trial(user, telegram_id=None, ip=None):
+    """
+    Central, anti-abuse-guarded trial provisioning. Returns (Subscription|None, error_message|None).
+    Rules:
+      - a Telegram account is REQUIRED and can claim a trial only once (ever),
+      - an IP can start at most MAX_TRIALS_PER_IP_PER_DAY trials per day,
+      - a user account can use its trial only once.
+    """
+    if user.is_trial_used:
+        return None, 'Бесплатный период уже был использован на этом аккаунте.'
+
+    tg = telegram_id or user.telegram_id
+    if not tg or not user.telegram_verified:
+        return None, 'Для активации бесплатного периода привяжите Telegram-аккаунт.'
+
+    if _telegram_already_claimed(tg):
+        return None, 'На этот Telegram уже был выдан бесплатный период.'
+
+    if ip and _ip_trial_count(ip) >= MAX_TRIALS_PER_IP_PER_DAY:
+        return None, 'Превышен лимит бесплатных активаций с этого адреса. Попробуйте позже или оформите подписку.'
+
+    sub_token = uuid.uuid4().hex
+    config_link = f"{get_base_url()}/sub/{sub_token}"
+    qr_path = generate_qr_code(config_link, sub_token)
+    sub = Subscription(
+        user_id=user.id,
+        plan='free_trial',
+        sub_token=sub_token,
+        end_date=datetime.utcnow() + timedelta(days=TRIAL_DAYS),
+        config_link=config_link,
+        qr_code_path=qr_path,
+        is_active=True,
+        payment_status='paid',
+    )
+    db.session.add(sub)
+    user.is_trial_used = True
+    db.session.add(TrialClaim(telegram_id=tg, ip=ip, user_id=user.id))
+    db.session.commit()
+    return sub, None
+
+
+def _country_breakdown(limit=40):
+    """Returns list of {code, name, flag, count, avg_ping} for working configs."""
+    rows = (
+        db.session.query(
+            Config.country_code,
+            func.count(Config.id),
+            func.avg(Config.latency_ms),
+        )
+        .filter(Config.is_working == True, Config.country_code.isnot(None))
+        .group_by(Config.country_code)
+        .order_by(func.count(Config.id).desc())
+        .limit(limit)
+        .all()
+    )
+    result = []
+    for code, count, avg_ping in rows:
+        result.append({
+            'code': code,
+            'name': country_name(code),
+            'flag': country_flag(code),
+            'count': count,
+            'avg_ping': round(avg_ping) if avg_ping is not None else None,
+        })
+    return result
 
 PLANS = {
     'free_trial': {'name': 'Бесплатный пробный период', 'days': 30, 'price': 0, 'badge': '30 дней бесплатно'},
@@ -87,14 +181,18 @@ def register_routes(app):
             'hysteria2': hy2_count or 25,
             'updated': datetime.utcnow().strftime('%H:%M MSK')
         }
-        return render_template('index.html', plans=PLANS, stats=stats)
+        countries = _country_breakdown()
+        return render_template('index.html', plans=PLANS, stats=stats, countries=countries)
 
     @app.route('/register', methods=['POST'])
     def register():
         username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
-        telegram_id = request.form.get('telegram_id')
+
+        if not username or not password:
+            flash('Укажите логин и пароль', 'warning')
+            return redirect(url_for('index'))
 
         if User.query.filter_by(username=username).first():
             flash('Пользователь с таким именем уже существует', 'danger')
@@ -103,34 +201,58 @@ def register_routes(app):
         user = User(
             username=username,
             email=email if email else None,
-            telegram_id=int(telegram_id) if telegram_id and telegram_id.isdigit() else None
+            telegram_id=None,
+            telegram_verified=False,
+            link_code=uuid.uuid4().hex[:12],
+            reg_ip=_client_ip(),
         )
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
 
-        # Provision 30-day Free Trial automatically
-        sub_token = uuid.uuid4().hex
-        config_link = f"{get_base_url()}/sub/{sub_token}"
-        qr_path = generate_qr_code(config_link, sub_token)
-
-        sub = Subscription(
-            user_id=user.id,
-            plan='free_trial',
-            sub_token=sub_token,
-            end_date=datetime.utcnow() + timedelta(days=30),
-            config_link=config_link,
-            qr_code_path=qr_path,
-            is_active=True,
-            payment_status='paid'
-        )
-        db.session.add(sub)
-        user.is_trial_used = True
-        db.session.commit()
-
         login_user(user)
-        flash('Добро пожаловать! Ваш бесплатный период на 30 дней успешно активирован!', 'success')
-        return redirect(url_for('dashboard'))
+        # No trial yet — the user must verify Telegram first (anti-abuse).
+        flash('Аккаунт создан! Привяжите Telegram, чтобы получить бесплатный период.', 'info')
+        return redirect(url_for('link_telegram'))
+
+    @app.route('/quick-start')
+    def quick_start():
+        """
+        Free trial no longer works anonymously. Send the user to registration,
+        which then requires Telegram verification before the trial is granted.
+        """
+        if current_user.is_authenticated:
+            if current_user.telegram_verified:
+                return redirect(url_for('dashboard', welcome=1))
+            return redirect(url_for('link_telegram'))
+        flash('Зарегистрируйтесь и привяжите Telegram, чтобы получить 30 дней бесплатно.', 'info')
+        return redirect(url_for('index', register=1))
+
+    @app.route('/link-telegram')
+    @login_required
+    def link_telegram():
+        """
+        Shows the deep link to the Telegram bot that binds this account and
+        grants the trial (once). Trial is provisioned by the bot on /start.
+        """
+        if not current_user.link_code:
+            current_user.link_code = uuid.uuid4().hex[:12]
+            db.session.commit()
+
+        bot_username = current_app.config.get('BOT_USERNAME')
+        deep_link = None
+        if bot_username:
+            deep_link = f"https://t.me/{bot_username}?start=link_{current_user.link_code}"
+
+        sub = Subscription.query.filter_by(user_id=current_user.id).order_by(Subscription.created_at.desc()).first()
+        return render_template(
+            'link_telegram.html',
+            deep_link=deep_link,
+            bot_username=bot_username,
+            link_code=current_user.link_code,
+            verified=current_user.telegram_verified,
+            has_sub=bool(sub),
+        )
 
     @app.route('/login', methods=['POST'])
     def login():
@@ -151,27 +273,36 @@ def register_routes(app):
         logout_user()
         return redirect(url_for('index'))
 
+    @app.route('/tg-login/<token>')
+    def tg_login(token):
+        """
+        Token-based auto-login from the Telegram bot. Opens the dashboard
+        already authenticated. Tokens are per-user and stable (regenerated only
+        if missing), so treat the URL as a secret like the subscription link.
+        """
+        user = User.query.filter_by(login_token=token).first()
+        if not user:
+            flash('Ссылка входа недействительна. Откройте бот и нажмите «Подключиться» снова.', 'danger')
+            return redirect(url_for('index'))
+        login_user(user)
+        return redirect(url_for('dashboard', welcome=1))
+
     @app.route('/dashboard')
     @login_required
     def dashboard():
         sub = Subscription.query.filter_by(user_id=current_user.id).order_by(Subscription.created_at.desc()).first()
-        if not sub and not current_user.is_trial_used:
-            # Auto create trial only if never used before
-            sub_token = uuid.uuid4().hex
-            config_link = f"{get_base_url()}/sub/{sub_token}"
-            qr_path = generate_qr_code(config_link, sub_token)
-            sub = Subscription(
-                user_id=current_user.id,
-                plan='free_trial',
-                sub_token=sub_token,
-                end_date=datetime.utcnow() + timedelta(days=30),
-                config_link=config_link,
-                qr_code_path=qr_path,
-                is_active=True
-            )
-            db.session.add(sub)
-            current_user.is_trial_used = True
-            db.session.commit()
+
+        # Gate: no anonymous/auto trial. Trial requires a verified Telegram link.
+        if not sub:
+            if not current_user.telegram_verified:
+                flash('Привяжите Telegram, чтобы активировать бесплатный период.', 'info')
+                return redirect(url_for('link_telegram'))
+            if not current_user.is_trial_used:
+                created, err = grant_trial(current_user, telegram_id=current_user.telegram_id, ip=_client_ip())
+                if err:
+                    flash(err, 'warning')
+                else:
+                    sub = created
 
         # Ensure QR code exists
         if sub and not sub.qr_code_path:
@@ -181,7 +312,10 @@ def register_routes(app):
 
         working_configs = get_working_configs(limit=10)
         deep_links = build_deep_links(sub.config_link) if sub and sub.config_link else {}
-        return render_template('dashboard.html', sub=sub, plans=PLANS, configs=working_configs, deep_links=deep_links)
+        welcome = request.args.get('welcome') == '1'
+        countries = _country_breakdown()
+        return render_template('dashboard.html', sub=sub, plans=PLANS, configs=working_configs,
+                               deep_links=deep_links, welcome=welcome, countries=countries)
 
     @app.route('/subscribe/<plan_id>')
     @login_required
@@ -197,28 +331,15 @@ def register_routes(app):
                 flash('У вас уже есть активная подписка!', 'info')
                 return redirect(url_for('dashboard'))
 
-            if current_user.is_trial_used:
-                flash('Бесплатный период уже был использован. Выберите платный тариф для продления.', 'warning')
-                return redirect(url_for('dashboard'))
+            if not current_user.telegram_verified:
+                flash('Привяжите Telegram, чтобы активировать бесплатный период.', 'info')
+                return redirect(url_for('link_telegram'))
 
-            sub_token = uuid.uuid4().hex
-            config_link = f"{get_base_url()}/sub/{sub_token}"
-            qr_path = generate_qr_code(config_link, sub_token)
-            sub = Subscription(
-                user_id=current_user.id,
-                plan=plan_id,
-                sub_token=sub_token,
-                end_date=datetime.utcnow() + timedelta(days=30),
-                config_link=config_link,
-                qr_code_path=qr_path,
-                is_active=True,
-                payment_status='paid'
-            )
-            db.session.add(sub)
-            current_user.is_trial_used = True
-            db.session.commit()
-
-            flash('Пробный период на 30 дней активирован!', 'success')
+            created, err = grant_trial(current_user, telegram_id=current_user.telegram_id, ip=_client_ip())
+            if err:
+                flash(err, 'warning')
+            else:
+                flash('Пробный период на 30 дней активирован!', 'success')
             return redirect(url_for('dashboard'))
 
         return render_template('subscribe.html', plan=plan, plan_id=plan_id)
@@ -243,6 +364,9 @@ def register_routes(app):
         else:
             return jsonify({'error': 'Invalid payment method'}), 400
 
+        if not payment_url:
+            return jsonify({'error': 'Платёжный шлюз недоступен. Проверьте настройки или попробуйте позже.'}), 502
+
         return jsonify({'payment_url': payment_url, 'external_id': external_id})
 
     @app.route('/payment/check/<external_id>')
@@ -260,15 +384,66 @@ def register_routes(app):
 
         return jsonify({'status': 'pending'})
 
+    @app.route('/payment/callback/platega', methods=['POST'])
+    def platega_callback():
+        """
+        Platega status callback (Настройки → Callback URLs).
+        Verifies X-MerchantId/X-Secret, then activates subscription on CONFIRMED.
+        Must be reachable over public HTTPS (no localhost/self-signed).
+        """
+        merchant_id = current_app.config.get('PLATEGA_MERCHANT_ID') or current_app.config.get('PLATEGA_SHOP_ID')
+        secret = current_app.config.get('PLATEGA_SECRET') or current_app.config.get('PLATEGA_API_KEY')
+        req_mid = request.headers.get('X-MerchantId')
+        req_secret = request.headers.get('X-Secret')
+        if not merchant_id or not secret or req_mid != merchant_id or req_secret != secret:
+            return jsonify({'error': 'unauthorized'}), 401
+
+        data = request.get_json(silent=True) or {}
+        tx_id = data.get('id')
+        status = str(data.get('status', '')).upper()
+        if not tx_id:
+            return jsonify({'error': 'bad request'}), 400
+
+        payment = Payment.query.filter_by(external_id=str(tx_id)).first()
+        if not payment:
+            return jsonify({'status': 'ignored'}), 200
+
+        if status == 'CONFIRMED' and payment.status != 'paid':
+            activate_paid_subscription(payment)
+        elif status == 'CANCELED':
+            payment.status = 'canceled'
+            db.session.commit()
+
+        return jsonify({'status': 'ok'}), 200
+
     @app.route('/sub/<sub_token>')
     def subscription_feed(sub_token):
         """
         Dynamic Subscription Endpoint for V2Ray / Karing / Streisand / NekoBox / Hiddify clients.
         Checks active status & returns Base64 encoded verified config list.
+        Sends Subscription-Userinfo + Profile headers so clients display the
+        expiry date, title and update interval.
         """
+        def _sub_headers(sub_obj, title):
+            headers = {
+                'Profile-Update-Interval': '12',
+                'Profile-Title': title,
+                'Content-Disposition': f'inline; filename="{title}"',
+            }
+            if sub_obj is not None:
+                # expire is a UNIX timestamp; upload/download/total are bytes.
+                expire_ts = int(sub_obj.end_date.timestamp())
+                # Advertise a large quota so clients don't show "0 B"; usage is unknown.
+                total = 1099511627776  # 1 TiB
+                headers['Subscription-Userinfo'] = (
+                    f"upload=0; download=0; total={total}; expire={expire_ts}"
+                )
+            return headers
+
         if sub_token == 'public':
             feed = generate_subscription_feed(is_base64=True, limit=100)
-            return Response(feed, mimetype='text/plain; charset=utf-8')
+            return Response(feed, mimetype='text/plain; charset=utf-8',
+                            headers=_sub_headers(None, 'VOLTA VPN'))
 
         sub = Subscription.query.filter_by(sub_token=sub_token).first()
         if not sub:
@@ -278,11 +453,17 @@ def register_routes(app):
             # Return notice for client
             blocked_msg = "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:443?encryption=none&security=none#%E2%9A%A0%EF%B8%8F%20%D0%9F%D0%BE%D0%B4%D0%BF%D0%B8%D1%81%D0%BA%D0%B0%20%D0%B8%D1%81%D1%82%D0%B5%D0%BA%D0%BB%D0%B0!%20%D0%9F%D1%80%D0%BE%D0%B4%D0%BB%D0%B8%D1%82%D0%B5%20%D0%BD%D0%B0%20VOLTA"
             b64_blocked = base64.b64encode(blocked_msg.encode('utf-8')).decode('utf-8')
-            return Response(b64_blocked, mimetype='text/plain; charset=utf-8')
+            # expire in the past so clients mark it expired
+            headers = {
+                'Profile-Title': 'VOLTA VPN (истекла)',
+                'Subscription-Userinfo': f"upload=0; download=0; total=0; expire={int(sub.end_date.timestamp())}",
+            }
+            return Response(b64_blocked, mimetype='text/plain; charset=utf-8', headers=headers)
 
         # Generate base64 feed from verified working configs
         feed = generate_subscription_feed(is_base64=True, limit=150)
-        return Response(feed, mimetype='text/plain; charset=utf-8')
+        return Response(feed, mimetype='text/plain; charset=utf-8',
+                        headers=_sub_headers(sub, 'VOLTA VPN'))
 
     @app.route('/api/stats')
     def api_stats():
@@ -298,7 +479,20 @@ def register_routes(app):
             'ss': ss_count,
             'trojan': trojan_count,
             'hysteria2': hy2_count,
+            'countries': _country_breakdown(),
             'timestamp': datetime.utcnow().isoformat()
+        })
+
+    @app.route('/api/countries')
+    def api_countries():
+        return jsonify({'countries': _country_breakdown()})
+
+    @app.route('/api/me')
+    @login_required
+    def api_me():
+        return jsonify({
+            'telegram_verified': bool(current_user.telegram_verified),
+            'is_trial_used': bool(current_user.is_trial_used),
         })
 
     # ----------------------------- Admin Panel -----------------------------
