@@ -126,7 +126,7 @@
                         <span class="badge bg-dark border border-glass px-2 py-1"><i class="bi bi-currency-bitcoin text-warning me-1"></i> Crypto</span>
                     </div>
                     <div class="small text-white-50">
-                        Поддержка: <a href="mailto:{{ support_info.email if support_info else 'support@voltavpn.net' }}" class="text-volt text-decoration-none">{{ support_info.email if support_info else 'support@voltavpn.net' }}</a>
+                        Поддержка: <a href="mailto:{{ support_info.email if support_info else 'support@vpn.stas-max.ru' }}" class="text-volt text-decoration-none">{{ support_info.email if support_info else 'support@vpn.stas-max.ru' }}</a>
                     </div>
                 </div>
             </div>
@@ -278,7 +278,7 @@
             <!-- Contacts Info Banner -->
             <div class="support-contact-info p-2 px-3 small border-bottom border-glass">
                 <div class="d-flex align-items-center justify-content-between">
-                    <span><i class="bi bi-envelope-fill text-volt me-1"></i> <a href="mailto:{{ support_info.email if support_info else 'support@voltavpn.net' }}" class="text-white text-decoration-none">{{ support_info.email if support_info else 'support@voltavpn.net' }}</a></span>
+                    <span><i class="bi bi-envelope-fill text-volt me-1"></i> <a href="mailto:{{ support_info.email if support_info else 'support@vpn.stas-max.ru' }}" class="text-white text-decoration-none">{{ support_info.email if support_info else 'support@vpn.stas-max.ru' }}</a></span>
                     {% if support_info and support_info.telegram %}
                     <span><i class="bi bi-telegram text-indigo me-1"></i> <a href="https://t.me/{{ support_info.telegram.replace('@', '') }}" target="_blank" class="text-volt text-decoration-none">{{ support_info.telegram }}</a></span>
                     {% endif %}

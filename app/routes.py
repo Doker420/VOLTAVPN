@@ -47,12 +47,13 @@ PLANS = {
 
 
 def _support_contacts():
-    email = AppSetting.get('SUPPORT_EMAIL') or current_app.config.get('SUPPORT_EMAIL', 'support@voltavpn.net')
-    telegram = AppSetting.get('SUPPORT_TELEGRAM') or current_app.config.get('SUPPORT_TELEGRAM', '@voltavpn_support')
+    email = AppSetting.get('SUPPORT_EMAIL') or current_app.config.get('SUPPORT_EMAIL', 'support@vpn.stas-max.ru')
+    telegram = AppSetting.get('SUPPORT_TELEGRAM') or current_app.config.get('SUPPORT_TELEGRAM', '@ILSupport')
     bot_username = current_app.config.get('BOT_USERNAME', '')
     return {
         'email': email,
         'telegram': telegram,
+        'telegram_link': f"https://t.me/{telegram.replace('@', '')}",
         'bot_username': bot_username,
         'online': True,
         'response_time': '~2-5 минут',
@@ -540,6 +541,42 @@ def register_routes(flask_app):
             db.session.commit()
 
         return jsonify({'status': 'ok'}), 200
+
+    @flask_app.route('/open/<client>/<sub_token>')
+    @flask_app.route('/open/<client>')
+    def open_client(client, sub_token=None):
+        sub_token = sub_token or request.args.get('token') or 'public'
+        sub_url = f"{get_base_url()}/sub/{sub_token}"
+        deep_links = build_deep_links(sub_url)
+        target_scheme = deep_links.get(client.lower(), sub_url)
+
+        client_titles = {
+            'karing': 'Karing',
+            'v2rayng': 'v2rayNG',
+            'streisand': 'Streisand',
+            'hiddify': 'Hiddify',
+            'singbox': 'sing-box',
+            'clash': 'Clash',
+        }
+        client_downloads = {
+            'karing': 'https://karing.app/',
+            'v2rayng': 'https://github.com/2dust/v2rayNG/releases',
+            'streisand': 'https://apps.apple.com/app/streisand/id6450534064',
+            'hiddify': 'https://github.com/hiddify/hiddify-next/releases',
+            'singbox': 'https://sing-box.sagernet.org/',
+            'clash': 'https://github.com/clash-verge-rev/clash-verge-rev/releases',
+        }
+        client_title = client_titles.get(client.lower(), client.capitalize())
+        download_url = client_downloads.get(client.lower(), f"{get_base_url()}/instructions")
+
+        return render_template(
+            'open_client.html',
+            client_name=client.lower(),
+            client_title=client_title,
+            target_scheme=target_scheme,
+            sub_url=sub_url,
+            download_url=download_url,
+        )
 
     @flask_app.route('/sub/<sub_token>')
     def subscription_feed(sub_token):

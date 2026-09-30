@@ -392,26 +392,24 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     link = sub_link(sub)
     web_login_url = f"{base_url()}/tg-login/{db_user.login_token}" if db_user.login_token else base_url()
-
-    from urllib.parse import quote
-    enc = quote(link, safe='')
-    name = quote('VoltaVPN', safe='')
+    sub_tok = sub.sub_token
 
     keyboard = [
-        [InlineKeyboardButton("📱 Karing (iOS / Android)", url=f"karing://install-config?url={enc}&name={name}")],
-        [InlineKeyboardButton("🤖 v2rayNG (Android)", url=f"v2rayng://install-sub?url={enc}&name={name}")],
-        [InlineKeyboardButton("🍏 Streisand (iOS)", url=f"streisand://import/{enc}")],
-        [InlineKeyboardButton("🛡 Hiddify", url=f"hiddify://import/{enc}#{name}")],
+        [InlineKeyboardButton("📱 Karing (iOS / Android)", url=f"{base_url()}/open/karing/{sub_tok}")],
+        [InlineKeyboardButton("🤖 v2rayNG (Android)", url=f"{base_url()}/open/v2rayng/{sub_tok}")],
+        [InlineKeyboardButton("🍏 Streisand (iOS / Mac)", url=f"{base_url()}/open/streisand/{sub_tok}")],
+        [InlineKeyboardButton("🛡 Hiddify (Windows / Android / Mac)", url=f"{base_url()}/open/hiddify/{sub_tok}")],
         [InlineKeyboardButton("🌐 Войти в личный кабинет на сайте", url=web_login_url)],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     msg = (
-        f"⚡ <b>Ваша подписка VOLTA активна!</b>\n\n"
-        f"⏳ Срок действия: <b>{sub.time_str()}</b>\n\n"
-        f"🔗 <b>Ссылка подписки (скопируйте или нажмите на кнопку приложения):</b>\n"
+        f"⚡ <b>Ваша подписка VoltaVPN активна!</b>\n\n"
+        f"⏳ Срок действия: <b>{sub.time_str()}</b>\n"
+        f"📱 Разрешено устройств: <b>до 3 устройств одновременно</b>\n\n"
+        f"🔗 <b>Ссылка подписки (нажмите для копирования):</b>\n"
         f"<code>{esc(link)}</code>\n\n"
-        f"💡 Нажмите на название вашего приложения ниже для мгновенного импорта:"
+        f"💡 Нажмите на кнопку вашего приложения ниже для быстрого импорта:"
     )
     await update.message.reply_text(msg, parse_mode='HTML', reply_markup=reply_markup)
 
@@ -691,11 +689,11 @@ async def chats_support_command(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with flask_app.app_context():
-        email = AppSetting.get('SUPPORT_EMAIL') or flask_app.config.get('SUPPORT_EMAIL', 'support@voltavpn.net')
-        telegram = AppSetting.get('SUPPORT_TELEGRAM') or flask_app.config.get('SUPPORT_TELEGRAM', '@voltavpn_support')
+        email = AppSetting.get('SUPPORT_EMAIL') or flask_app.config.get('SUPPORT_EMAIL', 'support@vpn.stas-max.ru')
+        telegram = AppSetting.get('SUPPORT_TELEGRAM') or flask_app.config.get('SUPPORT_TELEGRAM', '@ILSupport')
 
     msg = (
-        "💬 <b>Служба поддержки VOLTA VPN:</b>\n\n"
+        "💬 <b>Служба поддержки VoltaVPN:</b>\n\n"
         f"✉️ <b>Email поддержки:</b> {esc(email)}\n"
         f"📱 <b>Telegram для связи:</b> {esc(telegram)}\n"
         f"🌐 <b>Онлайн-чат на сайте:</b> {esc(base_url())}\n\n"
@@ -768,9 +766,7 @@ async def guide_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db_user, sub = get_or_create_user(user, auto_trial=True)
 
     link = sub_link(sub) if sub else f"{base_url()}/sub/public"
-    from urllib.parse import quote
-    enc = quote(link, safe='')
-    name = quote('VoltaVPN', safe='')
+    sub_tok = sub.sub_token if sub else "public"
 
     back_btn = InlineKeyboardButton("« Назад к выбору устройства", callback_data="guide_main")
 
@@ -786,8 +782,8 @@ async def guide_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔗 <b>Ваша ссылка подписки:</b>\n<code>{esc(link)}</code>"
         )
         kb = [
-            [InlineKeyboardButton("⚡ Импорт в Karing (1 клик)", url=f"karing://install-config?url={enc}&name={name}")],
-            [InlineKeyboardButton("📥 Импорт в Streisand", url=f"streisand://import/{enc}")],
+            [InlineKeyboardButton("⚡ Импорт в Karing (1 клик)", url=f"{base_url()}/open/karing/{sub_tok}")],
+            [InlineKeyboardButton("📥 Импорт в Streisand", url=f"{base_url()}/open/streisand/{sub_tok}")],
             [InlineKeyboardButton("🍎 Скачать Karing в App Store", url="https://apps.apple.com/app/karing/id6472431552")],
             [InlineKeyboardButton("🍎 Скачать Streisand в App Store", url="https://apps.apple.com/app/streisand/id6450534064")],
             [back_btn],
@@ -804,8 +800,8 @@ async def guide_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔗 <b>Ваша ссылка подписки:</b>\n<code>{esc(link)}</code>"
         )
         kb = [
-            [InlineKeyboardButton("⚡ Импорт в v2rayNG (1 клик)", url=f"v2rayng://install-sub?url={enc}&name={name}")],
-            [InlineKeyboardButton("⚡ Импорт в Karing (1 клик)", url=f"karing://install-config?url={enc}&name={name}")],
+            [InlineKeyboardButton("⚡ Импорт в v2rayNG (1 клик)", url=f"{base_url()}/open/v2rayng/{sub_tok}")],
+            [InlineKeyboardButton("⚡ Импорт в Karing (1 клик)", url=f"{base_url()}/open/karing/{sub_tok}")],
             [InlineKeyboardButton("🤖 Скачать v2rayNG (Google Play)", url="https://play.google.com/store/apps/details?id=com.v2ray.ang")],
             [back_btn],
         ]
@@ -821,7 +817,7 @@ async def guide_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔗 <b>Ваша ссылка подписки:</b>\n<code>{esc(link)}</code>"
         )
         kb = [
-            [InlineKeyboardButton("🛡 Открыть в Hiddify", url=f"hiddify://import/{enc}#{name}")],
+            [InlineKeyboardButton("🛡 Открыть в Hiddify", url=f"{base_url()}/open/hiddify/{sub_tok}")],
             [InlineKeyboardButton("💻 Скачать Hiddify (GitHub)", url="https://github.com/hiddify/hiddify-next/releases")],
             [InlineKeyboardButton("💻 Скачать v2rayN (GitHub)", url="https://github.com/2dust/v2rayN/releases")],
             [back_btn],
@@ -836,6 +832,7 @@ async def guide_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔗 <b>Ваша ссылка подписки:</b>\n<code>{esc(link)}</code>"
         )
         kb = [
+            [InlineKeyboardButton("🍏 Открыть в Streisand", url=f"{base_url()}/open/streisand/{sub_tok}")],
             [InlineKeyboardButton("🍏 Скачать Streisand (Mac App Store)", url="https://apps.apple.com/app/streisand/id6450534064")],
             [InlineKeyboardButton("💻 Скачать Hiddify DMG", url="https://github.com/hiddify/hiddify-next/releases")],
             [back_btn],
@@ -845,11 +842,11 @@ async def guide_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📺 <b>Инструкция для Android TV и Роутеров:</b>\n\n"
             "• <b>Android TV:</b> Установите v2rayNG или Hiddify из магазина ТВ и отсканируйте QR-код вашей подписки.\n"
             "• <b>Роутеры Keenetic / OpenWrt:</b> Поддерживаются протоколы VLESS Reality и Shadowsocks-2022.\n\n"
-            "💬 Напишите нам в поддержку, если нужна помощь с настройкой роутера!"
+            "💬 Напишите нам в поддержку @ILSupport, если нужна помощь с настройкой роутера!"
         )
         kb = [
             [InlineKeyboardButton("📥 Получить QR-код для ТВ", callback_data="get_qr")],
-            [InlineKeyboardButton("💬 Написать в поддержку", url="https://t.me/voltavpn_support")],
+            [InlineKeyboardButton("💬 Написать в поддержку", url="https://t.me/ILSupport")],
             [back_btn],
         ]
 
@@ -911,7 +908,7 @@ async def faq_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚡ <b>Скорость и работа сервисов:</b>\n\n"
             "• <b>YouTube 4K:</b> Серверы подключены к портам до 10 Гбит/с — видео открывается мгновенно без зависаний.\n"
             "• <b>Лимиты:</b> Безлимитный трафик на всех тарифах без ограничений по скорости.\n"
-            "• <b>Устройства:</b> До 5 устройств одновременно на одну подписку."
+            "• <b>Устройства:</b> До 3 устройств одновременно на одну подписку (по дефолту)."
         )
     else:  # faq_update
         text = (

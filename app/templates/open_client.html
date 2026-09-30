@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5 my-md-4 text-center" style="max-width: 600px;">
+    <div class="card-glass p-4 p-md-5">
+        
+        <!-- App Icon & Loading Pulse -->
+        <div class="mb-4">
+            <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center shadow-lg mb-3" style="width: 88px; height: 88px; background: rgba(56, 189, 248, 0.15); border: 2px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 40px;">
+                {% if client_name == 'karing' %}
+                <i class="bi bi-phone"></i>
+                {% elif client_name == 'v2rayng' %}
+                <i class="bi bi-android2 text-success"></i>
+                {% elif client_name == 'streisand' %}
+                <i class="bi bi-apple text-white"></i>
+                {% elif client_name == 'hiddify' %}
+                <i class="bi bi-shield-check text-indigo"></i>
+                {% elif client_name == 'singbox' %}
+                <i class="bi bi-box text-warning"></i>
+                {% else %}
+                <i class="bi bi-lightning-charge-fill text-volt"></i>
+                {% endif %}
+            </div>
+            <h3 class="fw-bold text-white mb-1">Открываем {{ client_title }}...</h3>
+            <p class="text-white-50 small mb-0">Подписка VoltaVPN импортируется в ваше приложение автоматически.</p>
+        </div>
+
+        <!-- Manual Open Button -->
+        <div class="mb-4">
+            <a href="{{ target_scheme }}" id="openAppBtn" class="btn btn-glow-volt btn-lg w-100 py-3 fw-bold mb-2">
+                <i class="bi bi-box-arrow-up-right me-2"></i> Открыть {{ client_title }} вручную
+            </a>
+            <small class="text-white-50">Если приложение не открылось за 2 секунды, нажмите на кнопку выше.</small>
+        </div>
+
+        <!-- Copy Link Fallback -->
+        <div class="p-3 bg-dark rounded-4 border border-glass text-start mb-4">
+            <label class="form-label text-white-50 small mb-1"><i class="bi bi-clipboard text-volt me-1"></i> Ваша ссылка подписки (скопируйте, если нужно вставить вручную):</label>
+            <div class="input-group">
+                <input type="text" id="subUrlCopy" class="form-control copy-field text-white small" value="{{ sub_url }}" readonly>
+                <button class="btn btn-glow-primary btn-sm px-3" onclick="copyDirectSubUrl()">
+                    <i class="bi bi-clipboard-check me-1" id="subCopyIcon"></i> <span id="subCopyText">Копировать</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Download App Help -->
+        <div class="border-top border-glass pt-3 d-flex justify-content-between align-items-center flex-wrap gap-2 text-white-50 small">
+            <span>Нет приложения?</span>
+            <a href="{{ download_url }}" target="_blank" class="text-volt text-decoration-none fw-semibold">
+                <i class="bi bi-download me-1"></i> Скачать {{ client_title }}
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const targetScheme = "{{ target_scheme }}";
+    if (targetScheme && targetScheme.includes('://')) {
+        // Try opening the deep link immediately
+        setTimeout(function() {
+            window.location.href = targetScheme;
+        }, 300);
+    }
+});
+
+function copyDirectSubUrl() {
+    const inp = document.getElementById('subUrlCopy');
+    inp.select();
+    navigator.clipboard.writeText(inp.value).then(() => {
+        document.getElementById('subCopyText').innerText = 'Скопировано!';
+        document.getElementById('subCopyIcon').className = 'bi bi-check-lg';
+        setTimeout(() => {
+            document.getElementById('subCopyText').innerText = 'Копировать';
+            document.getElementById('subCopyIcon').className = 'bi bi-clipboard-check';
+        }, 2500);
+    });
+}
+</script>
+{% endblock %}

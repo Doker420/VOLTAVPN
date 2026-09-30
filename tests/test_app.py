@@ -397,3 +397,9 @@ def test_legal_and_knowledge_base_pages(client, app):
     assert 'Часто задаваемые вопросы'.encode('utf-8') in resp_faq.data
     assert 'VLESS Reality'.encode('utf-8') in resp_faq.data
 
+    # 5. Client Open Bridge (/open/karing/public)
+    resp_open = client.get('/open/karing/public')
+    assert resp_open.status_code == 200
+    assert 'karing://install-config'.encode('utf-8') in resp_open.data
+    assert 'Karing'.encode('utf-8') in resp_open.data
+

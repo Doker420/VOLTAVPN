@@ -122,9 +122,9 @@ def create_app():
     flask_app.config['YOOMONEY_RECEIVER'] = os.getenv('YOOMONEY_RECEIVER', '')
     flask_app.config['YOOMONEY_TOKEN'] = os.getenv('YOOMONEY_TOKEN', '')
     flask_app.config['YOOMONEY_NOTIFICATION_SECRET'] = os.getenv('YOOMONEY_NOTIFICATION_SECRET', '')
-    flask_app.config['SUPPORT_EMAIL'] = os.getenv('SUPPORT_EMAIL', 'support@voltavpn.net')
-    flask_app.config['SUPPORT_TELEGRAM'] = os.getenv('SUPPORT_TELEGRAM', '@voltavpn_support')
-    flask_app.config['WEBHOOK_URL'] = os.getenv('WEBHOOK_URL', 'http://localhost:5000')
+    flask_app.config['SUPPORT_EMAIL'] = os.getenv('SUPPORT_EMAIL', 'support@vpn.stas-max.ru')
+    flask_app.config['SUPPORT_TELEGRAM'] = os.getenv('SUPPORT_TELEGRAM', '@ILSupport')
+    flask_app.config['WEBHOOK_URL'] = os.getenv('WEBHOOK_URL', 'http://localhost:5001')
     flask_app.config['BOT_USERNAME'] = os.getenv('BOT_USERNAME', '')
 
     db.init_app(flask_app)
