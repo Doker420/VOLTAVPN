@@ -9,6 +9,11 @@ import subprocess
 import ssl
 import html
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+try:
+    import socks  # PySocks: optional SOCKS5/HTTP CONNECT egress for probes
+except ImportError:
+    socks = None
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs, unquote, quote
 from sqlalchemy import or_, and_
@@ -248,7 +253,35 @@ def test_tcp_connection(host, port, timeout=TCP_TIMEOUT, sni=None, is_tls=False)
     clean_host = host.strip('[]')
     start_time = time.time()
     try:
-        sock = socket.create_connection((clean_host, int(port)), timeout=timeout)
+        proxy_url = os.getenv('RUSSIA_PROXY', '').strip()
+        if proxy_url:
+            if socks is None:
+                print('[Collector] RUSSIA_PROXY is set but PySocks is not installed')
+                return None
+            parsed_proxy = urlparse(proxy_url)
+            proxy_scheme = parsed_proxy.scheme.lower()
+            proxy_types = {
+                'socks5': socks.SOCKS5,
+                'socks5h': socks.SOCKS5,
+                'socks4': socks.SOCKS4,
+                'http': socks.HTTP,
+                'https': socks.HTTP,
+            }
+            proxy_type = proxy_types.get(proxy_scheme)
+            if not proxy_type or not parsed_proxy.hostname or not parsed_proxy.port:
+                print('[Collector] Invalid RUSSIA_PROXY; use socks5:// or http://host:port')
+                return None
+            sock = socks.create_connection(
+                (clean_host, int(port)),
+                proxy_type=proxy_type,
+                proxy_addr=parsed_proxy.hostname,
+                proxy_port=parsed_proxy.port,
+                proxy_username=parsed_proxy.username,
+                proxy_password=parsed_proxy.password,
+                timeout=timeout,
+            )
+        else:
+            sock = socket.create_connection((clean_host, int(port)), timeout=timeout)
         if is_tls or (port in [443, 8443, 2053, 2083, 2087, 2096] and sni):
             server_name = sni or clean_host
             try:

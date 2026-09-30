@@ -282,7 +282,10 @@ def generate_qr_code(data, token):
 
 
 def build_deep_links(sub_url):
-    enc = quote(sub_url, safe='')
+    # Make app imports deterministic: clients must receive the feed, not the
+    # browser portal, even when their user-agent is not recognized.
+    feed_url = sub_url + ('&' if '?' in sub_url else '?') + 'format=base64'
+    enc = quote(feed_url, safe='')
     name = quote('VoltaVPN', safe='')
     return {
         'v2rayng': f"v2rayng://install-sub?url={enc}&name={name}",
