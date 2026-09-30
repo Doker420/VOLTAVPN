@@ -879,12 +879,33 @@ def build_branded_lines(configs):
     return lines
 
 
+def _is_universal_client_config(config):
+    """Keep subscription entries compatible with mobile clients, especially iOS.
+
+    Public collectors often contain newer transports (xhttp, quic, kcp) that
+    some clients silently reject as an invalid whole subscription. The web and
+    QR links use one common feed, so publish the conservative transports that
+    are supported by Karing, Streisand, Hiddify and v2rayNG.
+    """
+    if not config or not config.content or not config.host or not config.port:
+        return False
+    if config.protocol == 'vless':
+        try:
+            params = parse_qs(urlparse(config.content).query)
+            transport = (params.get('type', ['tcp'])[0] or 'tcp').lower()
+            if transport not in {'tcp', 'ws', 'grpc'}:
+                return False
+        except Exception:
+            return False
+    return True
+
+
 def generate_subscription_feed(is_base64=True, limit=25):
     """
     Generates dynamic, auto-branded subscription content for VPN clients
     (Happ, v2rayN, Karing, Streisand, NekoBox, Hiddify, Sing-box).
     """
-    configs = get_working_configs(limit=limit)
+    configs = [c for c in get_working_configs(limit=limit) if _is_universal_client_config(c)]
     raw_content = "\n".join(build_branded_lines(configs))
     if is_base64:
         return base64.b64encode(raw_content.encode('utf-8')).decode('utf-8')
