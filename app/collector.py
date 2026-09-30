@@ -11,6 +11,7 @@ import html
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs, unquote, quote
+from sqlalchemy import or_, and_
 from app.models import Config, db
 
 GITHUB_SOURCES = [
@@ -806,11 +807,17 @@ def get_working_configs(protocol=None, limit=25):
     """
     from flask import current_app
     with current_app.app_context():
+        # A config may be explicitly marked working before its first latency
+        # probe (for example, right after an admin import). Do not publish dead
+        # configs, but do keep working rows whose latency is not measured yet;
+        # otherwise the generated subscription becomes an empty base64 feed and
+        # clients report that there are no active configurations.
         query = Config.query.filter(
             Config.is_working == True,
-            Config.latency_ms.isnot(None),
-            Config.latency_ms > 0,
-            Config.latency_ms < 450.0,
+            or_(
+                Config.latency_ms.is_(None),
+                and_(Config.latency_ms > 0, Config.latency_ms < 450.0),
+            ),
         )
         if protocol:
             query = query.filter(Config.protocol == protocol)
