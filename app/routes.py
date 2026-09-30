@@ -910,7 +910,7 @@ def register_routes(flask_app):
         accept_header = request.headers.get('Accept', '').lower()
 
         is_vpn_client = any(client in user_agent for client in [
-            'karing', 'v2rayng', 'streisand', 'hiddify', 'sing-box', 'clash',
+            'happ', 'karing', 'v2rayng', 'streisand', 'hiddify', 'sing-box', 'clash',
             'shadowrocket', 'quantumult', 'loon', 'surge', 'nekobox', 'matsuri',
             'curl', 'python-requests', 'wget', 'go-http-client', 'okhttp', 'dart'
         ])

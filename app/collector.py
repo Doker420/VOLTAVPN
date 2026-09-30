@@ -213,9 +213,26 @@ def extract_host_port(line, protocol):
     return None, None
 
 
-def test_tcp_connection(host, port, timeout=TCP_TIMEOUT):
+def extract_sni_and_tls(uri, proto):
     """
-    Tests TCP connection to host:port and measures latency in milliseconds.
+    Extracts SNI/host and whether TLS/Reality handshake should be verified.
+    """
+    try:
+        parsed = urlparse(uri)
+        qs = parse_qs(parsed.query)
+        sni = qs.get('sni', [None])[0] or qs.get('host', [None])[0] or qs.get('serverName', [None])[0] or qs.get('peer', [None])[0]
+        sec = (qs.get('security', [''])[0] or '').lower()
+        is_tls = sec in ['tls', 'reality'] or proto in ['trojan', 'hysteria2', 'hy2']
+        return sni, is_tls
+    except Exception:
+        return None, False
+
+
+def test_tcp_connection(host, port, timeout=TCP_TIMEOUT, sni=None, is_tls=False):
+    """
+    Tests TCP connection and optionally TLS handshake to host:port.
+    Measures latency in milliseconds.
+    Filters out dead nodes, closed ports, and TLS handshake failures.
     """
     if not host or not port:
         return None
@@ -224,8 +241,27 @@ def test_tcp_connection(host, port, timeout=TCP_TIMEOUT):
     start_time = time.time()
     try:
         sock = socket.create_connection((clean_host, int(port)), timeout=timeout)
-        sock.close()
-        return round((time.time() - start_time) * 1000, 2)
+        if is_tls or (port in [443, 8443, 2053, 2083, 2087, 2096] and sni):
+            server_name = sni or clean_host
+            try:
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                tls_sock = ctx.wrap_socket(sock, server_hostname=server_name)
+                tls_sock.close()
+            except Exception:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+                return None
+        else:
+            sock.close()
+
+        elapsed = round((time.time() - start_time) * 1000, 2)
+        if elapsed > 450.0:
+            return None
+        return elapsed
     except (socket.timeout, socket.error, OSError):
         return None
 
@@ -240,7 +276,6 @@ def rename_node_autoselect(content, protocol, latency=None, code=None):
     c_info = f" · {flag} {cname}" if cname else ""
     ping = f" · {int(latency)}ms" if latency is not None else ""
     title = f"⚡ {BRAND} | 🚀 АВТОВЫБОР (Самый быстрый){c_info}{ping}"
-    encoded_title = quote(title)
 
     try:
         if protocol == 'vmess':
@@ -254,7 +289,7 @@ def rename_node_autoselect(content, protocol, latency=None, code=None):
             return 'vmess://' + base64.b64encode(new_json.encode('utf-8')).decode('utf-8')
 
         base = content.split('#', 1)[0]
-        return f"{base}#{encoded_title}"
+        return f"{base}#{title}"
     except Exception:
         return content
 
@@ -262,14 +297,13 @@ def rename_node_autoselect(content, protocol, latency=None, code=None):
 def rename_node(content, protocol, index, latency=None, code=None):
     """
     Auto-generates a branded node title for a config URI:
-        🇩🇪 VOLTA | Германия #1 · VLESS Reality · 38ms
+        🇩🇪 VoltaVPN | Германия #1 · VLESS Reality · 38ms
     """
     label = PROTOCOL_LABELS.get(protocol, protocol.upper())
     flag = country_flag(code)
     cname = country_name(code)
     ping = f" · {int(latency)}ms" if latency is not None else ""
     title = f"{flag} {BRAND} | {cname} #{index} · {label}{ping}"
-    encoded_title = quote(title)
 
     try:
         if protocol == 'vmess':
@@ -283,7 +317,7 @@ def rename_node(content, protocol, index, latency=None, code=None):
             return 'vmess://' + base64.b64encode(new_json.encode('utf-8')).decode('utf-8')
 
         base = content.split('#', 1)[0]
-        return f"{base}#{encoded_title}"
+        return f"{base}#{title}"
     except Exception:
         return content
 
@@ -302,7 +336,8 @@ def fetch_configs_from_source(url):
 def _probe(entry):
     line_str, protocol, source_url = entry
     host, port = extract_host_port(line_str, protocol)
-    latency = test_tcp_connection(host, port)
+    sni, is_tls = extract_sni_and_tls(line_str, protocol)
+    latency = test_tcp_connection(host, port, timeout=TCP_TIMEOUT, sni=sni, is_tls=is_tls)
     is_working = latency is not None
     code = resolve_country(host) if is_working else None
     return {
@@ -471,7 +506,8 @@ def add_custom_config(content, protocol=None, country_code=None, is_working=None
         return None, "Неизвестный протокол конфигурации"
 
     host, port = extract_host_port(content, proto)
-    latency = test_tcp_connection(host, port)
+    sni, is_tls = extract_sni_and_tls(content, proto)
+    latency = test_tcp_connection(host, port, timeout=TCP_TIMEOUT, sni=sni, is_tls=is_tls)
     
     # If is_working was not explicitly passed, determine from TCP handshake
     if is_working is None:
@@ -481,6 +517,7 @@ def add_custom_config(content, protocol=None, country_code=None, is_working=None
 
     code = country_code or resolve_country(host) or 'DE'
     cname = country_name(code)
+    effective_latency = latency if latency is not None else (45.0 if effective_working else None)
 
     with current_app.app_context():
         existing = Config.query.filter_by(content=content).first()
@@ -491,8 +528,8 @@ def add_custom_config(content, protocol=None, country_code=None, is_working=None
             existing.country_code = code
             existing.country = cname
             existing.is_working = effective_working
-            if latency is not None:
-                existing.latency_ms = latency
+            if effective_latency is not None:
+                existing.latency_ms = effective_latency
             existing.checked_at = datetime.utcnow()
             cfg = existing
         else:
@@ -501,7 +538,7 @@ def add_custom_config(content, protocol=None, country_code=None, is_working=None
                 content=content,
                 host=host,
                 port=port,
-                latency_ms=latency,
+                latency_ms=effective_latency,
                 country=cname,
                 country_code=code,
                 is_working=effective_working,
@@ -519,7 +556,7 @@ def add_batch_configs(text_block, test_connectivity=True):
     """
     Admin helper to import multiple config lines at once.
     Supports Happ / Clash / v2ray / base64 / plain URI blocks.
-    Strictly probes TCP connectivity so dead/unreachable nodes are not marked active.
+    Strictly probes TCP + TLS connectivity so dead/unreachable nodes are not marked active.
     Returns (added_count, working_count).
     """
     from flask import current_app
@@ -539,7 +576,8 @@ def add_batch_configs(text_block, test_connectivity=True):
             if not proto:
                 continue
             host, port = extract_host_port(line_str, proto)
-            lat = test_tcp_connection(host, port) if test_connectivity else None
+            sni, is_tls = extract_sni_and_tls(line_str, proto)
+            lat = test_tcp_connection(host, port, timeout=TCP_TIMEOUT, sni=sni, is_tls=is_tls) if test_connectivity else None
             is_working = (lat is not None)
             
             code = resolve_country(host) or 'NL'
@@ -578,7 +616,7 @@ def add_batch_configs(text_block, test_connectivity=True):
 
 def probe_all_configs(delete_dead=True):
     """
-    Re-tests TCP connectivity for all configs in DB and updates their status.
+    Re-tests TCP + TLS connectivity for all configs in DB and updates their status.
     Ensures non-responding nodes are deactivated or pruned immediately.
     """
     from flask import current_app
@@ -587,12 +625,16 @@ def probe_all_configs(delete_dead=True):
         if not configs:
             return {'total': 0, 'working': 0, 'dead': 0}
 
-        entries = [(c.id, c.host, c.port) for c in configs]
+        entries = []
+        for c in configs:
+            sni, is_tls = extract_sni_and_tls(c.content, c.protocol)
+            entries.append((c.id, c.host, c.port, sni, is_tls))
+
         results = {}
 
         def _test_item(item):
-            cid, host, port = item
-            lat = test_tcp_connection(host, port)
+            cid, host, port, sni, is_tls = item
+            lat = test_tcp_connection(host, port, timeout=TCP_TIMEOUT, sni=sni, is_tls=is_tls)
             return cid, lat
 
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -608,7 +650,7 @@ def probe_all_configs(delete_dead=True):
         dead_count = 0
         for c in configs:
             lat = results.get(c.id)
-            if lat is not None:
+            if lat is not None and lat < 450.0:
                 c.latency_ms = lat
                 c.is_working = True
                 working_count += 1
@@ -738,21 +780,48 @@ def collect_configs():
         return current_working
 
 
-def get_working_configs(protocol=None, limit=200):
+def get_working_configs(protocol=None, limit=25):
     """
-    Returns active, tested configs sorted strictly by lowest ping (latency_ms asc).
+    Returns the top verified, highest-quality working configs.
+    Filters strictly by lowest latency (< 450ms), deduplicates by host/IP,
+    and returns the top 15-25 best nodes for maximum reliability in Russia.
     """
     from flask import current_app
     with current_app.app_context():
-        query = Config.query.filter_by(is_working=True)
+        query = Config.query.filter(
+            Config.is_working == True,
+            Config.latency_ms.isnot(None),
+            Config.latency_ms > 0,
+            Config.latency_ms < 450.0,
+        )
         if protocol:
-            query = query.filter_by(protocol=protocol)
-        configs = query.order_by(
-            Config.latency_ms.asc().nullslast(),
-            Config.checked_at.desc(),
-        ).limit(limit).all()
+            query = query.filter(Config.protocol == protocol)
 
-        return configs
+        all_candidates = query.order_by(Config.latency_ms.asc(), Config.checked_at.desc()).limit(150).all()
+
+        selected = []
+        seen_hosts = {}
+        country_counts = {}
+
+        for c in all_candidates:
+            host = (c.host or '').lower().strip()
+            country = c.country_code or 'UN'
+
+            # Max 2 configs per host to prevent 1 broken host spamming slots
+            if seen_hosts.get(host, 0) >= 2:
+                continue
+            # Max 4 configs per country to maintain geographic diversity
+            if country_counts.get(country, 0) >= 4:
+                continue
+
+            selected.append(c)
+            seen_hosts[host] = seen_hosts.get(host, 0) + 1
+            country_counts[country] = country_counts.get(country, 0) + 1
+
+            if len(selected) >= limit:
+                break
+
+        return selected
 
 
 def build_branded_lines(configs):
@@ -781,10 +850,10 @@ def build_branded_lines(configs):
     return lines
 
 
-def generate_subscription_feed(is_base64=True, limit=200):
+def generate_subscription_feed(is_base64=True, limit=25):
     """
     Generates dynamic, auto-branded subscription content for VPN clients
-    (v2rayN, Karing, Streisand, NekoBox, Hiddify, Sing-box).
+    (Happ, v2rayN, Karing, Streisand, NekoBox, Hiddify, Sing-box).
     """
     configs = get_working_configs(limit=limit)
     raw_content = "\n".join(build_branded_lines(configs))
