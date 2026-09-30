@@ -356,6 +356,180 @@
 
             <!-- 4. CONFIGS TAB -->
             <div class="tab-pane fade" id="tab-configs" role="tabpanel">
+                <!-- Instruction Card for Own VPS Servers -->
+                <div class="card-glass border-volt border-opacity-50 p-4 mb-4 rounded-4 shadow-lg">
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3 pb-3 border-bottom border-glass">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center shadow-lg" style="width: 52px; height: 52px; background: rgba(56, 189, 248, 0.15); border: 2px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 24px;">
+                                <i class="bi bi-server"></i>
+                            </div>
+                            <div>
+                                <span class="badge badge-neon-indigo mb-1">🔥 Рекомендация для стабильности бизнеса</span>
+                                <h5 class="fw-bold text-white mb-0">Руководство: Как настроить свои мощные серверы и добавить в VoltaVPN</h5>
+                            </div>
+                        </div>
+                        <button class="btn btn-glass-secondary btn-sm px-3 py-2 text-nowrap" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOwnServerGuide" aria-expanded="true">
+                            <i class="bi bi-chevron-down me-1"></i> Свернуть / Развернуть инструкцию
+                        </button>
+                    </div>
+
+                    <div class="collapse show" id="collapseOwnServerGuide">
+                        <!-- Why Own Servers Win -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <div class="p-3 rounded-3 h-100" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
+                                    <h6 class="fw-bold text-emerald mb-2"><i class="bi bi-lightning-charge-fill me-1"></i> 1 Гбит/с и пинг 15–35 мс</h6>
+                                    <p class="small text-white-75 mb-0">Свой VPS не перегружен тысячами людей, обеспечивая максимальную скорость для YouTube 4K, Telegram и онлайн-игр.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="p-3 rounded-3 h-100" style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25);">
+                                    <h6 class="fw-bold text-volt mb-2"><i class="bi bi-shield-check me-1"></i> Не блокируется ТСПУ / РКН</h6>
+                                    <p class="small text-white-75 mb-0">Приватные ключи VLESS Reality и маскировка под Apple/Cloudflare гарантируют 100% обход любых блокировок в РФ.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="p-3 rounded-3 h-100" style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.25);">
+                                    <h6 class="fw-bold text-purple mb-2"><i class="bi bi-cash-stack me-1"></i> Высокий LTV и доверие клиентов</h6>
+                                    <p class="small text-white-75 mb-0">Пользователи продлевают платную подписку месяцами, когда VPN работает бесперебойно 24/7 без отвалов.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step-by-Step Configuration Steps -->
+                        <h6 class="fw-bold text-white mb-3"><i class="bi bi-123 text-volt me-1"></i> Пошаговая настройка своего сервера за 5 минут:</h6>
+                        
+                        <div class="accordion accordion-glass mb-3" id="serverSetupAccordion">
+                            <!-- Step 1 -->
+                            <div class="accordion-item bg-transparent border border-glass rounded-3 mb-2">
+                                <h2 class="accordion-header" id="headingStep1">
+                                    <button class="accordion-button bg-transparent text-white fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStep1">
+                                        <span class="badge bg-primary me-2">Шаг 1</span> Аренда недорогого VPS за рубежом (Германия, Нидерланды, Финляндия)
+                                    </button>
+                                </h2>
+                                <div id="collapseStep1" class="accordion-collapse collapse show" data-bs-parent="#serverSetupAccordion">
+                                    <div class="accordion-body text-white-75 small">
+                                        <p class="mb-2">Арендуйте любой зарубежный VPS с операционной системой <strong>Ubuntu 22.04 или 24.04 LTS</strong> (подойдет минимальный тариф за 150–300 ₽/мес, 1 CPU, 1–2 GB RAM).</p>
+                                        <ul class="mb-0">
+                                            <li><strong>Рекомендуемые локации с минимальным пингом в РФ:</strong> Германия (Франкфурт), Нидерланды (Амстердам), Финляндия (Хельсинки), Швеция (Стокгольм), Казахстан (Алматы), Турция (Стамбул).</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step 2 -->
+                            <div class="accordion-item bg-transparent border border-glass rounded-3 mb-2">
+                                <h2 class="accordion-header" id="headingStep2">
+                                    <button class="accordion-button collapsed bg-transparent text-white fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStep2">
+                                        <span class="badge bg-primary me-2">Шаг 2</span> Установка современной панели 3X-UI в одну команду
+                                    </button>
+                                </h2>
+                                <div id="collapseStep2" class="accordion-collapse collapse" data-bs-parent="#serverSetupAccordion">
+                                    <div class="accordion-body text-white-75 small">
+                                        <p class="mb-2">Подключитесь к вашему серверу через SSH терминал (PuTTY / Terminal / Bitvise) и вставьте официальную команду установки панели <strong>3X-UI</strong>:</p>
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control copy-field text-white font-monospace" id="installCmdInput" value="bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)" readonly>
+                                            <button class="btn btn-glow-primary px-3" onclick="copyInstallCmd()">
+                                                <i class="bi bi-clipboard me-1" id="copyInstallIcon"></i> Скопировать
+                                            </button>
+                                        </div>
+                                        <p class="text-white-50 mb-0">При установке подтвердите установку и укажите логин, пароль и порт для входа в панель (например: <code>2053</code>).</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step 3 -->
+                            <div class="accordion-item bg-transparent border border-glass rounded-3 mb-2">
+                                <h2 class="accordion-header" id="headingStep3">
+                                    <button class="accordion-button collapsed bg-transparent text-white fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStep3">
+                                        <span class="badge bg-primary me-2">Шаг 3</span> Создание подключения VLESS Reality (лучший протокол против блокировок)
+                                    </button>
+                                </h2>
+                                <div id="collapseStep3" class="accordion-collapse collapse" data-bs-parent="#serverSetupAccordion">
+                                    <div class="accordion-body text-white-75 small">
+                                        <p class="mb-2">Откройте в браузере <code>http://IP_ВАШЕГО_СЕРВЕРА:2053</code>, авторизуйтесь и перейдите в раздел <strong>«Inbounds» (Подключения) &rarr; «Add Inbound» (Добавить)</strong>:</p>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered border-glass text-white-75 mb-3">
+                                                <thead>
+                                                    <tr class="text-volt">
+                                                        <th>Параметр</th>
+                                                        <th>Рекомендуемое значение</th>
+                                                        <th>Пояснение</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        <td><strong>Protocol</strong></td>
+                                                        <td><code>vless</code></td>
+                                                        <td>Самый быстрый протокол без лишнего шифровального оверхеда</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Port</strong></td>
+                                                        <td><code>443</code></td>
+                                                        <td>Стандартный HTTPS порт для маскировки под веб-сервер</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Transmission</strong></td>
+                                                        <td><code>tcp</code></td>
+                                                        <td>Базовый надёжный транспорт</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Security</strong></td>
+                                                        <td><code>Reality</code></td>
+                                                        <td>Маскирует трафик под реальный TLS 1.3 сайт</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Flow</strong></td>
+                                                        <td><code>xtls-rprx-vision</code></td>
+                                                        <td>Устраняет TLS-in-TLS паттерны для полного обхода ТСПУ</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Dest (Target)</strong></td>
+                                                        <td><code>gateway.icloud.com:443</code> или <code>speed.cloudflare.com:443</code></td>
+                                                        <td>Белый авторитетный сайт, под который маскируется ваш VPS</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>SNI / ServerNames</strong></td>
+                                                        <td><code>gateway.icloud.com</code> или <code>speed.cloudflare.com</code></td>
+                                                        <td>Должен в точности совпадать с Dest</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <p class="mb-0">Нажмите <strong>«Get New Keys» (Сгенерировать ключи)</strong> и сохраните подключение кнопкой <strong>«Save / Create»</strong>.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step 4 -->
+                            <div class="accordion-item bg-transparent border border-glass rounded-3 mb-2">
+                                <h2 class="accordion-header" id="headingStep4">
+                                    <button class="accordion-button collapsed bg-transparent text-white fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStep4">
+                                        <span class="badge bg-primary me-2">Шаг 4</span> Добавление созданного сервера в VoltaVPN
+                                    </button>
+                                </h2>
+                                <div id="collapseStep4" class="accordion-collapse collapse" data-bs-parent="#serverSetupAccordion">
+                                    <div class="accordion-body text-white-75 small">
+                                        <ol class="mb-3 ps-3">
+                                            <li>В панели 3X-UI нажмите на иконку <strong>«QR-код / Копировать ссылку»</strong> у созданного подключения. Вы получите ссылку вида:
+                                                <div class="p-2 bg-dark rounded border border-glass my-2 font-monospace text-volt small text-break">
+                                                    vless://uuid-клиента@IP_ВАШЕГО_СЕРВЕРА:443?type=tcp&security=reality&pbk=ПУБЛИЧНЫЙ_КЛЮЧ&fp=chrome&sni=gateway.icloud.com&sid=SHORT_ID&spx=%2F&flow=xtls-rprx-vision#МойСервер-DE
+                                                </div>
+                                            </li>
+                                            <li>В этой админ-панели нажмите кнопку <strong>«Добавить серверы»</strong> (вверху страницы).</li>
+                                            <li>Вставьте скопированную ссылку (или сразу несколько ссылок построчно, если у вас 2–5 локаций) и нажмите <strong>«Импортировать в базу данных»</strong>.</li>
+                                        </ol>
+                                        <div class="alert alert-success card-glass border-emerald border-opacity-50 text-white p-3 mb-0 rounded-3">
+                                            <i class="bi bi-check-circle-fill text-emerald me-2"></i>
+                                            <strong>Готово!</strong> Система VoltaVPN автоматически протестирует сервер, определит флаг страны, назначит ему лучший пинг и мгновенно выведет его <strong>на первое место (в АВТОВЫБОР)</strong> во все подписки ваших пользователей!
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card-glass p-4">
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
                         <div>
@@ -744,20 +918,24 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body pt-3">
+                <div class="alert alert-info card-glass border-volt border-opacity-50 text-white p-3 mb-3 rounded-3 small">
+                    <i class="bi bi-info-circle-fill text-volt me-1"></i>
+                    <strong>Совет:</strong> Собственные VPS серверы на <strong>3X-UI (VLESS Reality)</strong> работают со скоростью 1 Гбит/с, никогда не блокируются ТСПУ/РКН и обеспечивают максимальное качество для клиентов.
+                </div>
                 <form method="POST" action="/admin/configs/add">
                     <div class="mb-3">
-                        <label class="form-label text-white-50 small">Один конфиг (URI VLESS / Trojan / SS / Hysteria2)</label>
-                        <input type="text" name="single_uri" class="form-control copy-field text-white" placeholder="vless://uuid@host:443?type=tcp&security=reality...#name">
+                        <label class="form-label text-white-50 small">Один конфиг (URI VLESS Reality / Trojan / Shadowsocks / Hysteria2)</label>
+                        <input type="text" name="single_uri" class="form-control copy-field text-white" placeholder="vless://uuid@host:443?type=tcp&security=reality&pbk=...&sni=gateway.icloud.com&sid=...&spx=%2F&flow=xtls-rprx-vision#VoltaVPN-DE">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label text-white-50 small">Код страны (2 буквы, например DE, NL, US, FI - опционально)</label>
+                        <label class="form-label text-white-50 small">Код страны (2 буквы, например DE, NL, US, FI, KZ - опционально, автоопределится)</label>
                         <input type="text" name="country_code" class="form-control copy-field text-white" placeholder="DE" maxlength="4">
                     </div>
                     <div class="mb-4">
-                        <label class="form-label text-white-50 small">Или список конфигов пачкой (по одному в строке)</label>
-                        <textarea name="batch_text" rows="5" class="form-control copy-field text-white" placeholder="vless://...&#10;trojan://...&#10;ss://..."></textarea>
+                        <label class="form-label text-white-50 small">Или список конфигов пачкой (по одному в строке или Base64 блок)</label>
+                        <textarea name="batch_text" rows="5" class="form-control copy-field text-white" placeholder="vless://...&#10;trojan://...&#10;ss://...&#10;hysteria2://..."></textarea>
                     </div>
-                    <button type="submit" class="btn btn-glow-volt w-100 py-3">Импортировать в базу данных</button>
+                    <button type="submit" class="btn btn-glow-volt w-100 py-3 fw-bold">Импортировать и проверить пинг</button>
                 </form>
             </div>
         </div>
@@ -767,6 +945,19 @@
 
 {% block scripts %}
 <script>
+function copyInstallCmd() {
+    const input = document.getElementById('installCmdInput');
+    if (!input) return;
+    input.select();
+    navigator.clipboard.writeText(input.value).then(() => {
+        const icon = document.getElementById('copyInstallIcon');
+        if (icon) icon.className = 'bi bi-check2 text-emerald';
+        setTimeout(() => {
+            if (icon) icon.className = 'bi bi-clipboard';
+        }, 2000);
+    });
+}
+
 // Hash navigation support (e.g. /admin#configs)
 document.addEventListener('DOMContentLoaded', function() {
     const hash = window.location.hash;
