@@ -691,10 +691,12 @@ def add_batch_configs(text_block, test_connectivity=True):
     return added, working_count
 
 
-def probe_all_configs(delete_dead=True):
+def probe_all_configs(delete_dead=True, check_russia_verified=False):
     """
-    Re-tests TCP + TLS connectivity for all configs in DB and updates their status.
-    Ensures non-responding nodes are deactivated or pruned immediately.
+    Re-tests TCP + TLS connectivity for configs in DB and updates latency.
+    Russia-tested upstream rows are normally trusted and not deactivated by a
+    foreign VPS probe. The admin "Test all" action can still request a local
+    latency refresh for display without changing their working status.
     """
     from flask import current_app
     with current_app.app_context():
@@ -706,7 +708,7 @@ def probe_all_configs(delete_dead=True):
         for c in configs:
             # Keep the upstream РФ-tested pool intact. The source is refreshed
             # by collect_configs; local probing must not mark it dead.
-            if _is_russia_verified_source(c.source_url):
+            if _is_russia_verified_source(c.source_url) and not check_russia_verified:
                 continue
             sni, is_tls = extract_sni_and_tls(c.content, c.protocol)
             entries.append((c.id, c.host, c.port, sni, is_tls))
@@ -730,7 +732,8 @@ def probe_all_configs(delete_dead=True):
         working_count = 0
         dead_count = 0
         for c in configs:
-            if _is_russia_verified_source(c.source_url):
+            is_curated = _is_russia_verified_source(c.source_url)
+            if is_curated and not check_russia_verified:
                 if c.is_working:
                     working_count += 1
                 continue
@@ -739,6 +742,13 @@ def probe_all_configs(delete_dead=True):
                 c.latency_ms = lat
                 c.is_working = True
                 working_count += 1
+            elif is_curated:
+                # The local server's latency is informational only for rows
+                # already verified in Russia. Never remove such a row because
+                # this VPS cannot reach it or has a slow route to it.
+                if c.is_working:
+                    working_count += 1
+                c.latency_ms = None
             else:
                 c.is_working = False
                 c.latency_ms = None
@@ -753,7 +763,9 @@ def probe_all_configs(delete_dead=True):
         return {'total': len(configs), 'working': working_count, 'dead': dead_count}
 
 
-test_all_configs = probe_all_configs
+def test_all_configs():
+    """Admin-only refresh: measure local ping for every row, including curated rows."""
+    return probe_all_configs(delete_dead=False, check_russia_verified=True)
 
 
 def delete_dead_configs():
