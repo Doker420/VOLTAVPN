@@ -2,7 +2,7 @@
 """Create a clean VLESS + Reality inbound in 3X-UI and import it into VoltaVPN.
 
 This intentionally creates a compatibility-first profile:
-  - port 443
+  - port 16012 (Apache can keep using 443)
   - TCP + VLESS Reality
   - xtls-rprx-vision
   - www.cloudflare.com:443
@@ -84,7 +84,7 @@ def make_uri(host, port, client_id, public_key, short_id, spider_x="/"):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-volta", action="store_true", help="не импортировать в VoltaVPN")
-    parser.add_argument("--port", type=int, default=443, help="порт inbound (по умолчанию 443)")
+    parser.add_argument("--port", type=int, default=16012, help="порт inbound (по умолчанию 16012; 443 не используется)")
     args = parser.parse_args()
 
     xui_url = need("XUI_URL")
