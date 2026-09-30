@@ -848,6 +848,23 @@ def collect_configs():
                 if line_str not in candidates:
                     candidates[line_str] = (line_str, protocol, source_url)
 
+        # The upstream subscriptions are rotating lists. Remove curated rows
+        # that disappeared from the latest successfully downloaded feeds so a
+        # dead node cannot remain in our database forever. Manual admin rows
+        # are never touched by this cleanup.
+        if candidates:
+            latest_contents = set(candidates.keys())
+            stale_curated = [
+                cfg for cfg in Config.query.all()
+                if _is_russia_verified_source(cfg.source_url)
+                and cfg.content not in latest_contents
+            ]
+            for cfg in stale_curated:
+                db.session.delete(cfg)
+            if stale_curated:
+                db.session.commit()
+                print(f'[Collector] Removed {len(stale_curated)} stale Russia-tested configs')
+
         entries = list(candidates.values())
         new_count = updated_count = working_count = 0
 
