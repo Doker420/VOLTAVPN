@@ -183,9 +183,15 @@ def create_app():
 
         if not scheduler.running:
             try:
-                scheduler.add_job(func=collect_configs, trigger='interval', hours=1, id='config_collector')
+                from app.collector import fast_recheck_and_prune, collect_configs
                 from app.bot import dispatch_expiry_checks
-                scheduler.add_job(func=dispatch_expiry_checks, trigger='interval', minutes=30, id='expiry_notifier')
+
+                # 1. 3-Minute fast recheck: TCP handshake test and immediate pruning of dead nodes
+                scheduler.add_job(func=fast_recheck_and_prune, trigger='interval', minutes=3, id='fast_checker')
+                # 2. 15-Minute remote open sources harvester
+                scheduler.add_job(func=collect_configs, trigger='interval', minutes=15, id='config_collector')
+                # 3. 15-Minute subscription expiry and grace period notification dispatcher
+                scheduler.add_job(func=dispatch_expiry_checks, trigger='interval', minutes=15, id='expiry_notifier')
                 scheduler.start()
             except Exception as e:
                 print(f"[Scheduler] Start notice: {e}")

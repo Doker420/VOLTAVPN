@@ -125,15 +125,16 @@ def test_extract_host_port_hysteria2():
 
 def test_build_branded_lines_numbers_per_protocol():
     configs = [
-        FakeConfig('vless', "vless://a@h1:443#x", 10),
-        FakeConfig('vless', "vless://b@h2:443#y", 20),
-        FakeConfig('trojan', "trojan://c@h3:443#z", 30),
+        FakeConfig('vless', "vless://a@h1:443#x", 10, country_code='DE'),
+        FakeConfig('vless', "vless://b@h2:443#y", 20, country_code='NL'),
+        FakeConfig('trojan', "trojan://c@h3:443#z", 30, country_code='FI'),
     ]
     lines = build_branded_lines(configs)
-    assert len(lines) == 3
+    # 1 autoselect node at the top + 3 individual server entries
+    assert len(lines) == 4
+    # First item is Auto-Select
+    assert "АВТОВЫБОР" in lines[0] or "%D0%90%D0%92%D0%A2%D0%9E%D0%92%D0%AB%D0%91%D0%9E%D0%A0" in lines[0]
     # per-protocol counters: two VLESS (#1, #2), one Trojan (#1)
-    assert "%23" in lines[0] or "#" in lines[0]  # fragment present
-    # ensure both vless entries got sequential numbers
     joined = "\n".join(lines)
     assert "VLESS" in joined
     assert "Trojan" in joined
@@ -165,5 +166,6 @@ def test_parse_configs_from_text_happ_and_multiline():
     assert any("de.node.com" in u for u in uris)
     assert any("nl-node.com" in u or "vmess://" in u for u in uris)
     assert any("fr.node.com" in u for u in uris)
+
 
 

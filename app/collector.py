@@ -47,8 +47,8 @@ PROTOCOL_LABELS = {
 }
 
 # Max threads for concurrent TCP connectivity testing
-MAX_WORKERS = 60
-TCP_TIMEOUT = 2.5
+MAX_WORKERS = 80
+TCP_TIMEOUT = 2.0
 
 # ISO country code -> (Russian name, flag emoji)
 COUNTRY_NAMES = {
@@ -228,6 +228,35 @@ def test_tcp_connection(host, port, timeout=TCP_TIMEOUT):
         return round((time.time() - start_time) * 1000, 2)
     except (socket.timeout, socket.error, OSError):
         return None
+
+
+def rename_node_autoselect(content, protocol, latency=None, code=None):
+    """
+    Auto-generates the #1 Auto-Select node title for the fastest server in the feed:
+        ⚡ VoltaVPN | 🚀 АВТОВЫБОР (Самый быстрый) · 🇩🇪 Германия · 24ms
+    """
+    flag = country_flag(code)
+    cname = country_name(code)
+    c_info = f" · {flag} {cname}" if cname else ""
+    ping = f" · {int(latency)}ms" if latency is not None else ""
+    title = f"⚡ {BRAND} | 🚀 АВТОВЫБОР (Самый быстрый){c_info}{ping}"
+    encoded_title = quote(title)
+
+    try:
+        if protocol == 'vmess':
+            raw_b64 = content.strip()[8:]
+            missing_padding = len(raw_b64) % 4
+            if missing_padding:
+                raw_b64 += '=' * (4 - missing_padding)
+            data = json.loads(base64.b64decode(raw_b64).decode('utf-8', errors='ignore'))
+            data['ps'] = title
+            new_json = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+            return 'vmess://' + base64.b64encode(new_json.encode('utf-8')).decode('utf-8')
+
+        base = content.split('#', 1)[0]
+        return f"{base}#{encoded_title}"
+    except Exception:
+        return content
 
 
 def rename_node(content, protocol, index, latency=None, code=None):
@@ -547,10 +576,10 @@ def add_batch_configs(text_block, test_connectivity=True):
     return added, working_count
 
 
-def probe_all_configs():
+def probe_all_configs(delete_dead=True):
     """
     Re-tests TCP connectivity for all configs in DB and updates their status.
-    Ensures non-responding nodes are deactivated (is_working=False).
+    Ensures non-responding nodes are deactivated or pruned immediately.
     """
     from flask import current_app
     with current_app.app_context():
@@ -585,8 +614,12 @@ def probe_all_configs():
                 working_count += 1
             else:
                 c.is_working = False
+                c.latency_ms = None
                 dead_count += 1
             c.checked_at = datetime.utcnow()
+
+        if delete_dead and dead_count > 0:
+            Config.query.filter(Config.is_working == False).delete(synchronize_session=False)
 
         db.session.commit()
         save_configs_to_repo()
@@ -602,15 +635,34 @@ def delete_dead_configs():
     """
     from flask import current_app
     with current_app.app_context():
-        deleted = Config.query.filter(Config.is_working == False).delete()
+        deleted = Config.query.filter(Config.is_working == False).delete(synchronize_session=False)
         db.session.commit()
         save_configs_to_repo()
         return deleted
 
 
+def fast_recheck_and_prune():
+    """
+    3-minute periodic worker:
+    1. Re-tests TCP ping for every server in the pool.
+    2. Immediately prunes dead / blocked configs.
+    3. If working pool is low (< 10), triggers fresh collection from open sources.
+    4. Regenerates subscription artifacts.
+    """
+    from flask import current_app
+    with current_app.app_context():
+        stats = probe_all_configs(delete_dead=True)
+        working_count = stats.get('working', 0)
+        print(f"[3-Min Recheck] Working: {working_count}, Pruned dead: {stats.get('dead', 0)}")
+        if working_count < 10:
+            collect_configs()
+        else:
+            save_configs_to_repo()
+
+
 def collect_configs():
     """
-    Hourly collector: fetches candidates from remote sources, tests connectivity,
+    Collects candidates from remote sources, tests connectivity,
     and updates the database.
     """
     from flask import current_app
@@ -678,7 +730,7 @@ def collect_configs():
             db.session.commit()
 
         # Re-check all active database configs to prune any dead servers
-        probe_all_configs()
+        probe_all_configs(delete_dead=True)
 
         current_working = Config.query.filter_by(is_working=True).count()
         print(f"[Collector] Finished: {new_count} new, {updated_count} updated, {current_working} working total.")
@@ -688,7 +740,7 @@ def collect_configs():
 
 def get_working_configs(protocol=None, limit=200):
     """
-    Returns active, tested configs sorted by country, then latency.
+    Returns active, tested configs sorted strictly by lowest ping (latency_ms asc).
     """
     from flask import current_app
     with current_app.app_context():
@@ -696,7 +748,6 @@ def get_working_configs(protocol=None, limit=200):
         if protocol:
             query = query.filter_by(protocol=protocol)
         configs = query.order_by(
-            Config.country.asc().nullslast(),
             Config.latency_ms.asc().nullslast(),
             Config.checked_at.desc(),
         ).limit(limit).all()
@@ -706,15 +757,27 @@ def get_working_configs(protocol=None, limit=200):
 
 def build_branded_lines(configs):
     """
-    Auto-generate branded, renamed node lines from Config rows,
-    grouped by country and annotated with flag + measured latency.
+    Auto-generate branded, renamed node lines from Config rows.
+    The FIRST line in the subscription is always the Auto-Select (#1 Fastest server)
+    followed by all individual nodes sorted strictly by best latency.
     """
-    counters = {}
+    if not configs:
+        return []
+
     lines = []
+
+    # 1. First entry: Auto-Select fastest server
+    best = configs[0]
+    best_code = getattr(best, 'country_code', None)
+    lines.append(rename_node_autoselect(best.content, best.protocol, best.latency_ms, best_code))
+
+    # 2. Individual server lines sorted by latency
+    counters = {}
     for c in configs:
         counters[c.protocol] = counters.get(c.protocol, 0) + 1
         code = getattr(c, 'country_code', None)
         lines.append(rename_node(c.content, c.protocol, counters[c.protocol], c.latency_ms, code))
+
     return lines
 
 
