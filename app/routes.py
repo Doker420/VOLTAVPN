@@ -1289,6 +1289,7 @@ def register_routes(flask_app):
         single_uri = (request.form.get('single_uri') or '').strip()
         batch_text = (request.form.get('batch_text') or '').strip()
         country_code = (request.form.get('country_code') or '').strip()
+        make_primary = (request.form.get('make_primary') or '').lower() in {'1', 'true', 'yes', 'on'}
 
         if single_uri:
             try:
@@ -1296,6 +1297,10 @@ def register_routes(flask_app):
                 if err:
                     flash(f'Ошибка добавления: {err}', 'danger')
                 else:
+                    if make_primary:
+                        Config.query.filter(Config.id != cfg.id).update({Config.is_primary: False}, synchronize_session=False)
+                        cfg.is_primary = True
+                        db.session.commit()
                     flash(f'Конфигурация {cfg.protocol.upper()} успешно добавлена ({cfg.country}).', 'success')
             except Exception as exc:
                 db.session.rollback()

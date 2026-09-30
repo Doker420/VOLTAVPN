@@ -165,6 +165,7 @@ def main():
     response = volta.post(api_url(volta_url, "/admin/configs/add"), data={
         "single_uri": uri,
         "country_code": os.getenv("VOLTA_COUNTRY_CODE", "DE"),
+        "make_primary": "1",
     }, timeout=60)
     response.raise_for_status()
     print("Конфигурация отправлена в VoltaVPN. Проверьте вкладку «Конфигурации» в админке.")
