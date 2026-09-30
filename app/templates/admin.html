@@ -612,6 +612,22 @@
                 <div class="card-glass p-4" style="max-width: 800px;">
                     <h5 class="fw-bold text-white mb-4"><i class="bi bi-gear-wide-connected text-volt me-2"></i>Настройки платежей и сервиса</h5>
                     <form method="POST" action="/admin/settings/save">
+                        <!-- Public Domain / Webhook URL -->
+                        <div class="p-4 rounded-4 bg-dark border border-glass mb-4">
+                            <h6 class="fw-bold text-white mb-2"><i class="bi bi-globe text-volt me-2"></i>Публичный домен сервиса (Base URL)</h6>
+                            <p class="small text-white-50 mb-3">
+                                Используется для генерации ссылок подписки, QR-кодов, deep-link кнопок и Webhook-уведомлений.
+                            </p>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-white-50 small">Публичный HTTPS URL (например: <code>https://vpn.stas-max.ru</code>)</label>
+                                <input type="url" name="webhook_url" value="{{ webhook_url }}" class="form-control auth-input text-white" placeholder="https://vpn.stas-max.ru">
+                            </div>
+                            <div class="small text-white-50">
+                                Текущий базовый URL: <code class="text-volt">{{ get_base_url() }}</code>
+                            </div>
+                        </div>
+
                         <!-- YooMoney Settings -->
                         <div class="p-4 rounded-4 bg-dark border border-glass mb-4">
                             <h6 class="fw-bold text-white mb-2"><i class="bi bi-wallet2 text-emerald me-2"></i>ЮMoney (Банковские карты РФ, СБП, Кошелек ЮMoney)</h6>

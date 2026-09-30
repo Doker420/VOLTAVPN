@@ -466,3 +466,11 @@ def test_legal_and_knowledge_base_pages(client, app):
     assert 'karing://install-config'.encode('utf-8') in resp_open.data
     assert 'Karing'.encode('utf-8') in resp_open.data
 
+    # 6. Dynamic QR code route (/qr/<token> and /qr/<token>.png)
+    resp_qr = client.get('/qr/public')
+    assert resp_qr.status_code == 200
+    assert resp_qr.mimetype == 'image/png'
+    assert len(resp_qr.data) > 100
+    assert resp_qr.data[:4] == b'\x89PNG'
+
+

@@ -117,7 +117,7 @@
                     <h5 class="fw-bold text-white mb-3">QR-код для импорта</h5>
                     {% if sub.qr_code_path %}
                     <div class="p-3 bg-white rounded-4 shadow-sm mb-3">
-                        <img src="{{ url_for('static', filename=sub.qr_code_path) }}" alt="QR Code" class="img-fluid" style="max-width: 180px;">
+                        <img src="/qr/{{ sub.sub_token }}" alt="QR Code" class="img-fluid" style="max-width: 180px;">
                     </div>
                     <p class="small text-white-50 mb-0">Отсканируйте камерой смартфона в Karing / Streisand</p>
                     {% else %}

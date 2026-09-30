@@ -220,7 +220,37 @@ def _country_breakdown(limit=40):
 
 
 def get_base_url():
-    return current_app.config.get('WEBHOOK_URL', 'http://localhost:5000').rstrip('/')
+    """
+    Intelligently determines the public base URL for subscriptions, QR codes, and deep links:
+    1. If manually configured in AppSetting (Admin Panel), use it.
+    2. If in active HTTP request context from a real client domain/IP (e.g. https://vpn.stas-max.ru or 192.168.x.x), use request scheme and host.
+    3. Fallback to WEBHOOK_URL or default production domain.
+    """
+    from flask import has_request_context, request
+
+    try:
+        db_url = AppSetting.get('WEBHOOK_URL')
+        if db_url and str(db_url).strip():
+            return str(db_url).strip().rstrip('/')
+    except Exception:
+        pass
+
+    if has_request_context():
+        scheme = request.headers.get('X-Forwarded-Proto') or request.headers.get('X-Scheme') or request.scheme
+        host = request.headers.get('X-Forwarded-Host') or request.host
+        if host and not any(lh in host.lower() for lh in ['localhost:5000', '127.0.0.1:5000']):
+            return f"{scheme}://{host}".rstrip('/')
+
+    env_url = current_app.config.get('WEBHOOK_URL') or os.getenv('WEBHOOK_URL')
+    if env_url and not any(lh in env_url.lower() for lh in ['localhost', '127.0.0.1']):
+        return env_url.strip().rstrip('/')
+
+    if has_request_context():
+        scheme = request.headers.get('X-Forwarded-Proto') or request.scheme
+        host = request.headers.get('X-Forwarded-Host') or request.host
+        return f"{scheme}://{host}".rstrip('/')
+
+    return (env_url or 'https://vpn.stas-max.ru').rstrip('/')
 
 
 def generate_qr_code(data, token):
@@ -645,11 +675,13 @@ def register_routes(flask_app):
         if not sub and not current_user.is_trial_used:
             sub, _ = grant_trial(current_user, ip=_client_ip(), days=TRIAL_DAYS)
 
-        # Refresh / generate QR code and config link
+        # Refresh / generate QR code and config link with fresh domain
         if sub:
             sub.config_link = f"{get_base_url()}/sub/{sub.sub_token}"
-            if not sub.qr_code_path or not os.path.exists(os.path.join(current_app.root_path, 'static', sub.qr_code_path)):
+            try:
                 sub.qr_code_path = generate_qr_code(sub.config_link, sub.sub_token)
+            except Exception:
+                sub.qr_code_path = f"qr/qr_{sub.sub_token}.png"
             db.session.commit()
 
         working_configs = get_working_configs(limit=12)
@@ -820,6 +852,30 @@ def register_routes(flask_app):
             download_url=download_url,
         )
 
+    @flask_app.route('/qr/<sub_token>')
+    @flask_app.route('/qr/<sub_token>.png')
+    def dynamic_qr_image(sub_token):
+        """
+        Dynamically renders the QR code PNG image for the subscription URL
+        using the current request's domain/host, guaranteeing the QR is never stale
+        or pointing to localhost.
+        """
+        sub_url = f"{get_base_url()}/sub/{sub_token}"
+        qr = qrcode.QRCode(version=1, box_size=10, border=3)
+        qr.add_data(sub_url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="#10b981", back_color="#0a0a0f")
+
+        from io import BytesIO
+        buf = BytesIO()
+        img.save(buf, format='PNG')
+        buf.seek(0)
+        return Response(buf.getvalue(), mimetype='image/png', headers={
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+        })
+
     @flask_app.route('/sub/<sub_token>')
     def subscription_feed(sub_token):
         """
@@ -870,7 +926,7 @@ def register_routes(flask_app):
                     is_expired=False,
                     time_left="Неограниченно",
                     end_date="Бессрочно",
-                    qr_code_url=None,
+                    qr_code_url="/qr/public",
                     deep_links=build_deep_links(f"{get_base_url()}/sub/public"),
                 )
             feed = generate_subscription_feed(is_base64=True, limit=100)
@@ -887,9 +943,11 @@ def register_routes(flask_app):
             user = sub.user
             login_url = f"{get_base_url()}/tg-login/{user.login_token}" if (user and user.login_token) else f"{get_base_url()}/dashboard"
             sub_url = f"{get_base_url()}/sub/{sub.sub_token}"
-            if not sub.qr_code_path or not os.path.exists(os.path.join(current_app.root_path, 'static', sub.qr_code_path)):
+            try:
                 sub.qr_code_path = generate_qr_code(sub_url, sub.sub_token)
                 db.session.commit()
+            except Exception:
+                pass
 
             plan_name = PLANS.get(sub.plan, {}).get('name', sub.plan)
             return render_template(
@@ -904,7 +962,7 @@ def register_routes(flask_app):
                 is_expired=sub.is_expired(),
                 time_left=sub.time_left_str(),
                 end_date=sub.end_date.strftime('%d.%m.%Y %H:%M'),
-                qr_code_url=url_for('static', filename=sub.qr_code_path) if sub.qr_code_path else None,
+                qr_code_url=f"/qr/{sub.sub_token}",
                 deep_links=build_deep_links(sub_url),
             )
 
@@ -1166,6 +1224,7 @@ def register_routes(flask_app):
 
         yoomoney_receiver, yoomoney_token, yoomoney_secret = _yoomoney_credentials()
         support_contacts = _support_contacts()
+        webhook_url = AppSetting.get('WEBHOOK_URL') or current_app.config.get('WEBHOOK_URL', '')
         required_channel = AppSetting.get('REQUIRED_CHANNEL') or current_app.config.get('REQUIRED_CHANNEL', '')
         required_channel_url = AppSetting.get('REQUIRED_CHANNEL_URL') or current_app.config.get('REQUIRED_CHANNEL_URL', '')
         affiliate_commission_percent = AppSetting.get('AFFILIATE_COMMISSION_PERCENT') or current_app.config.get('AFFILIATE_COMMISSION_PERCENT', '75')
@@ -1201,6 +1260,7 @@ def register_routes(flask_app):
             yoomoney_receiver=yoomoney_receiver,
             yoomoney_token=yoomoney_token,
             yoomoney_secret=yoomoney_secret,
+            webhook_url=webhook_url,
             support_contacts=support_contacts,
             required_channel=required_channel,
             required_channel_url=required_channel_url,
@@ -1431,6 +1491,7 @@ def register_routes(flask_app):
     @flask_app.route('/admin/settings/save', methods=['POST'])
     @admin_required
     def admin_save_settings():
+        webhook_url = (request.form.get('webhook_url') or '').strip()
         yoomoney_receiver = (request.form.get('yoomoney_receiver') or '').strip()
         yoomoney_token = (request.form.get('yoomoney_token') or '').strip()
         yoomoney_secret = (request.form.get('yoomoney_secret') or '').strip()
@@ -1441,6 +1502,8 @@ def register_routes(flask_app):
         affiliate_commission_percent = (request.form.get('affiliate_commission_percent') or '75').strip()
         min_withdrawal_amount = (request.form.get('min_withdrawal_amount') or '100').strip()
 
+        if webhook_url:
+            AppSetting.set('WEBHOOK_URL', webhook_url, 'Публичный домен сервиса (https://...)')
         AppSetting.set('YOOMONEY_RECEIVER', yoomoney_receiver, 'YooMoney кошелёк')
         AppSetting.set('YOOMONEY_TOKEN', yoomoney_token, 'YooMoney OAuth токен')
         AppSetting.set('YOOMONEY_NOTIFICATION_SECRET', yoomoney_secret, 'YooMoney секрет уведомлений')

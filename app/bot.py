@@ -50,9 +50,16 @@ def esc(value):
 
 
 def base_url():
+    url = None
     if flask_app:
-        return flask_app.config.get('WEBHOOK_URL', 'http://localhost:5000').rstrip('/')
-    return os.getenv('WEBHOOK_URL', 'http://localhost:5000').rstrip('/')
+        with flask_app.app_context():
+            try:
+                url = AppSetting.get('WEBHOOK_URL') or flask_app.config.get('WEBHOOK_URL')
+            except Exception:
+                url = flask_app.config.get('WEBHOOK_URL')
+    if not url:
+        url = os.getenv('WEBHOOK_URL')
+    return (url or 'https://vpn.stas-max.ru').rstrip('/')
 
 
 def sub_link(sub):
