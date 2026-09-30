@@ -801,6 +801,14 @@ def collect_configs():
         if enabled not in {'1', 'true', 'yes', 'on'}:
             print('[Collector] Free config collection is disabled in admin settings')
             return 0
+
+        # Remove only old third-party collector rows. Manually added servers
+        # (admin_custom/admin_batch) and rows without a source are preserved.
+        for old_cfg in Config.query.all():
+            source = old_cfg.source_url or ''
+            if source and source not in {'admin_custom', 'admin_batch'} and not _is_russia_verified_source(source):
+                db.session.delete(old_cfg)
+        db.session.commit()
         print(f"[Collector] Starting collection at {datetime.utcnow().isoformat()}...")
 
         candidates = {}
