@@ -113,6 +113,13 @@ def _run_lightweight_migrations():
                 db.session.commit()
             except Exception as e:
                 print(f"[Migrate] notified_expired add skipped: {e}")
+        if 'grace_hours' not in sub_cols:
+            try:
+                db.session.execute(text('ALTER TABLE subscription ADD COLUMN grace_hours INTEGER DEFAULT 24'))
+                db.session.commit()
+                print("[Migrate] Added subscription.grace_hours column")
+            except Exception as e:
+                print(f"[Migrate] grace_hours add skipped: {e}")
 
     # SupportMessage email column
     try:

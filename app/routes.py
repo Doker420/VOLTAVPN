@@ -886,6 +886,8 @@ def register_routes(flask_app):
           with 1-click import buttons, QR code, remaining time, and direct app links.
         """
         def _sub_headers(sub_obj, title='VoltaVPN'):
+            if sub_obj is not None and sub_obj.is_in_grace_period():
+                title = 'VoltaVPN (Льготный период)'
             headers = {
                 'Profile-Update-Interval': '1',
                 'Update-Interval': '1',
@@ -893,7 +895,7 @@ def register_routes(flask_app):
                 'Profile-Web-Page-Url': f"{get_base_url()}/dashboard",
             }
             if sub_obj is not None:
-                expire_ts = int(sub_obj.end_date.timestamp())
+                expire_ts = int(sub_obj.effective_end_date().timestamp() if sub_obj.is_in_grace_period() else sub_obj.end_date.timestamp())
                 total = 1099511627776  # 1 TiB
                 headers['Subscription-Userinfo'] = (
                     f"upload=0; download=0; total={total}; expire={expire_ts}"
@@ -1293,8 +1295,12 @@ def register_routes(flask_app):
                 flash(f'Конфигурация {cfg.protocol.upper()} успешно добавлена ({cfg.country}).', 'success')
 
         if batch_text:
-            count = add_batch_configs(batch_text)
-            flash(f'Импортировано {count} конфигураций.', 'success')
+            result = add_batch_configs(batch_text)
+            count, working = result if isinstance(result, tuple) else (result, result)
+            if count == 0:
+                flash('Не удалось распознать конфигурации из введённого текста.', 'warning')
+            else:
+                flash(f'Импортировано {count} конфигураций (рабочих: {working}, неактивных: {count - working}).', 'success' if working > 0 else 'warning')
 
         return redirect(url_for('admin_dashboard') + '#configs')
 

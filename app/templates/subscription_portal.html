@@ -4,6 +4,23 @@
 <section class="py-5">
     <div class="container py-3" style="max-width: 780px;">
 
+        {% if sub and sub.is_in_grace_period() %}
+        <div class="alert alert-warning card-glass border-warning border-opacity-50 text-white p-4 mb-4 rounded-4 shadow-lg d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <i class="bi bi-clock-history text-warning fs-1 flex-shrink-0"></i>
+                <div>
+                    <h5 class="fw-bold text-warning mb-1">Вам предоставлено +24 часа на оплату!</h5>
+                    <p class="mb-0 text-white-75 small">
+                        Основной срок подписки завершён, но соединение продлено на 24 часа (до <strong>{{ sub.effective_end_date().strftime('%d.%m.%Y %H:%M') }}</strong>), чтобы вы могли без помех оплатить продление.
+                    </p>
+                </div>
+            </div>
+            <a href="{{ login_url }}" class="btn btn-warning fw-bold text-dark px-4 py-2 flex-shrink-0">
+                <i class="bi bi-arrow-repeat me-1"></i> Продлить
+            </a>
+        </div>
+        {% endif %}
+
         <!-- Status Card -->
         <div class="card-glass p-4 p-md-5 mb-4 text-center text-md-start">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4 pb-3 border-bottom border-glass">
@@ -12,16 +29,22 @@
                         <i class="bi bi-shield-lock-fill"></i>
                     </div>
                     <div>
-                        <span class="badge {% if not is_expired and is_active %}badge-neon-emerald{% else %}bg-danger{% endif %} mb-1">
-                            {% if not is_expired and is_active %}🟢 Подписка активна{% else %}🔴 Истекла{% endif %}
+                        <span class="badge {% if is_expired %}bg-danger{% elif sub and sub.is_in_grace_period() %}bg-warning text-dark{% else %}badge-neon-emerald{% endif %} mb-1">
+                            {% if is_expired %}🔴 Истекла{% elif sub and sub.is_in_grace_period() %}⚡ Льготный период (+24ч){% else %}🟢 Подписка активна{% endif %}
                         </span>
                         <h3 class="fw-bold text-white mb-0">VoltaVPN · {{ plan_name }}</h3>
-                        <small class="text-white-50">До {{ end_date if end_date else 'неограниченно' }}</small>
+                        <small class="text-white-50">
+                            {% if sub and sub.is_in_grace_period() %}
+                            Льготный доступ до {{ sub.effective_end_date().strftime('%d.%m.%Y %H:%M') }}
+                            {% else %}
+                            До {{ end_date if end_date else 'неограниченно' }}
+                            {% endif %}
+                        </small>
                     </div>
                 </div>
 
                 <div class="text-md-end">
-                    <span class="fs-2 fw-bold {% if not is_expired and is_active %}text-emerald{% else %}text-danger{% endif %}">
+                    <span class="fs-2 fw-bold {% if is_expired %}text-danger{% elif sub and sub.is_in_grace_period() %}text-warning{% else %}text-emerald{% endif %}">
                         {{ time_left }}
                     </span>
                     <span class="d-block text-white-50 small">осталось времени</span>

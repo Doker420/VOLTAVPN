@@ -384,20 +384,160 @@ def seed_default_configs():
         return count
 
 
-def add_custom_config(content, protocol=None, country_code=None, is_working=True):
+def parse_configs_from_text(raw_text):
+    """
+    Robust multi-format parser for VPN configuration inputs.
+    Supports:
+    - Base64 encoded subscription feeds (e.g., Happ, v2rayNG, Streisand, Clash, panels)
+    - Sing-box and Clash JSON configuration outbounds/proxies
+    - Individual proxy URIs (vless://, vmess://, ss://, trojan://, hysteria2://, hy2://, tuic://, ssr://)
+    - Multi-line text with mixed comments or Markdown code blocks
+    """
+    if not raw_text:
+        return []
+
+    text = raw_text.strip()
+    found_uris = []
+
+    # 1. Try decoding entire text if it is a single base64 payload
+    known_schemes = ['vless://', 'vmess://', 'ss://', 'trojan://', 'hysteria2://', 'hy2://', 'tuic://', 'ssr://', '{', '[']
+    if not any(text.lower().startswith(s) for s in known_schemes):
+        try:
+            b64_clean = re.sub(r'\s+', '', text).replace('-', '+').replace('_', '/')
+            missing = len(b64_clean) % 4
+            if missing:
+                b64_clean += '=' * (4 - missing)
+            decoded = base64.b64decode(b64_clean).decode('utf-8', errors='ignore')
+            if any(s in decoded.lower() for s in ['vless://', 'vmess://', 'ss://', 'trojan://', 'hysteria2://', 'hy2://']):
+                return parse_configs_from_text(decoded)
+        except Exception:
+            pass
+
+    # 2. Try JSON parsing (sing-box outbounds or Clash JSON proxies)
+    if text.startswith('{') or text.startswith('['):
+        try:
+            data = json.loads(text)
+            outbounds = data.get('outbounds', []) if isinstance(data, dict) else []
+            proxies = data.get('proxies', []) if isinstance(data, dict) else []
+            if isinstance(data, list):
+                outbounds = data
+
+            for item in outbounds + proxies:
+                if not isinstance(item, dict):
+                    continue
+                p_type = (item.get('type') or item.get('protocol') or item.get('scheme') or '').lower()
+                server = item.get('server') or item.get('server_address') or item.get('host') or item.get('add')
+                port = item.get('server_port') or item.get('port') or item.get('listen_port') or 443
+                tag = item.get('tag') or item.get('name') or item.get('ps') or 'Proxy'
+
+                if not server:
+                    continue
+
+                if p_type == 'vless':
+                    uuid_val = item.get('uuid') or item.get('password') or item.get('id') or ''
+                    tls_data = item.get('tls', {}) if isinstance(item.get('tls'), dict) else {}
+                    reality_data = tls_data.get('reality', {}) if isinstance(tls_data.get('reality'), dict) else item.get('reality-opts', {})
+                    sni = tls_data.get('server_name') or item.get('servername') or item.get('sni') or ''
+                    pbk = reality_data.get('public_key') or reality_data.get('public-key') or item.get('public_key') or item.get('pbk') or ''
+                    sid = reality_data.get('short_id') or reality_data.get('short-id') or item.get('short_id') or item.get('sid') or ''
+                    sec = 'reality' if (pbk or reality_data) else ('tls' if (tls_data.get('enabled') or item.get('tls')) else 'none')
+                    
+                    params = []
+                    if sec != 'none':
+                        params.append(f'security={sec}')
+                    if sni:
+                        params.append(f'sni={sni}')
+                    if pbk:
+                        params.append(f'pbk={pbk}')
+                    if sid:
+                        params.append(f'sid={sid}')
+                    flow = item.get('flow', '')
+                    if flow:
+                        params.append(f'flow={flow}')
+                    transport = item.get('transport', {})
+                    net_type = transport.get('type') if isinstance(transport, dict) else item.get('network', 'tcp')
+                    if net_type and net_type != 'tcp':
+                        params.append(f'type={net_type}')
+                    qstr = '&'.join(params)
+                    uri = f"vless://{uuid_val}@{server}:{port}?{qstr}#{quote(tag)}"
+                    found_uris.append(uri)
+                elif p_type in ['ss', 'shadowsocks']:
+                    method = item.get('method') or item.get('cipher') or 'aes-256-gcm'
+                    pwd = item.get('password') or ''
+                    user_info = base64.b64encode(f"{method}:{pwd}".encode('utf-8')).decode('utf-8')
+                    uri = f"ss://{user_info}@{server}:{port}#{quote(tag)}"
+                    found_uris.append(uri)
+                elif p_type == 'trojan':
+                    pwd = item.get('password') or ''
+                    sni = item.get('sni') or item.get('server_name') or ''
+                    uri = f"trojan://{pwd}@{server}:{port}?security=tls&sni={sni}#{quote(tag)}"
+                    found_uris.append(uri)
+                elif p_type in ['hysteria2', 'hy2']:
+                    pwd = item.get('password') or item.get('auth') or ''
+                    sni = item.get('sni') or item.get('server_name') or ''
+                    uri = f"hysteria2://{pwd}@{server}:{port}?sni={sni}#{quote(tag)}"
+                    found_uris.append(uri)
+        except Exception:
+            pass
+
+    if found_uris:
+        return found_uris
+
+    # 3. Regex match for standard URI protocols
+    uri_pattern = re.compile(r'((?:vless|vmess|ss|trojan|hysteria2|hy2|tuic|ssr)://[^\s<>"\']+)', re.IGNORECASE)
+    raw_matches = uri_pattern.findall(text)
+    for match in raw_matches:
+        cleaned = match.strip().rstrip('.,;:)]}')
+        if cleaned and cleaned not in found_uris:
+            found_uris.append(cleaned)
+
+    # 4. Check lines individually for embedded base64 blocks
+    for line in text.splitlines():
+        line_clean = line.strip().strip('`').strip('"').strip("'")
+        if not line_clean:
+            continue
+        if any(line_clean.startswith(u) for u in found_uris):
+            continue
+        if len(line_clean) >= 20 and ' ' not in line_clean and not any(line_clean.startswith(s) for s in known_schemes):
+            try:
+                b64_clean = line_clean.replace('-', '+').replace('_', '/')
+                missing = len(b64_clean) % 4
+                if missing:
+                    b64_clean += '=' * (4 - missing)
+                dec = base64.b64decode(b64_clean).decode('utf-8', errors='ignore')
+                for sub_match in uri_pattern.findall(dec):
+                    sub_cleaned = sub_match.strip().rstrip('.,;:)]}')
+                    if sub_cleaned and sub_cleaned not in found_uris:
+                        found_uris.append(sub_cleaned)
+            except Exception:
+                pass
+
+    return found_uris
+
+
+def add_custom_config(content, protocol=None, country_code=None, is_working=None):
     """
     Admin helper to add or update a single custom VPN configuration URI.
+    Verifies TCP handshake before enabling.
     """
     from flask import current_app
-    content = content.strip()
+    content = (content or '').strip()
     if not content:
-        return None, "Empty content"
+        return None, "Пустая конфигурация"
 
     proto = protocol or detect_protocol(content)
     if not proto:
-        return None, "Unknown protocol format"
+        return None, "Неизвестный протокол конфигурации"
 
     host, port = extract_host_port(content, proto)
+    latency = test_tcp_connection(host, port)
+    
+    # If is_working was not explicitly passed, determine from TCP handshake
+    if is_working is None:
+        effective_working = latency is not None
+    else:
+        effective_working = bool(is_working)
+
     code = country_code or resolve_country(host) or 'DE'
     cname = country_name(code)
 
@@ -409,7 +549,9 @@ def add_custom_config(content, protocol=None, country_code=None, is_working=True
             existing.port = port
             existing.country_code = code
             existing.country = cname
-            existing.is_working = is_working
+            existing.is_working = effective_working
+            if latency is not None:
+                existing.latency_ms = latency
             existing.checked_at = datetime.utcnow()
             cfg = existing
         else:
@@ -418,10 +560,10 @@ def add_custom_config(content, protocol=None, country_code=None, is_working=True
                 content=content,
                 host=host,
                 port=port,
-                latency_ms=test_tcp_connection(host, port) or 45.0,
+                latency_ms=latency,
                 country=cname,
                 country_code=code,
-                is_working=is_working,
+                is_working=effective_working,
                 source_url='admin_custom',
                 collected_at=datetime.utcnow(),
                 checked_at=datetime.utcnow(),
@@ -432,49 +574,36 @@ def add_custom_config(content, protocol=None, country_code=None, is_working=True
         return cfg, None
 
 
-def add_batch_configs(text_block):
+def add_batch_configs(text_block, test_connectivity=True):
     """
     Admin helper to import multiple config lines at once.
-    Supports plain URI lists, base64-encoded subscription blocks, and mixed content.
+    Supports Happ / Clash / v2ray / base64 / plain URI blocks.
+    Strictly probes TCP connectivity so dead/unreachable nodes are not marked active.
+    Returns (added_count, working_count).
     """
     from flask import current_app
     raw = (text_block or '').strip()
     if not raw:
-        return 0
+        return 0, 0
 
-    lines = raw.splitlines()
-    all_lines = []
-    for line in lines:
-        line_clean = line.strip()
-        if not line_clean:
-            continue
-        proto = detect_protocol(line_clean)
-        if proto:
-            all_lines.append(line_clean)
-        else:
-            # Try decoding base64 if line doesn't start with a known scheme
-            try:
-                b64_str = line_clean.replace('-', '+').replace('_', '/')
-                missing_padding = len(b64_str) % 4
-                if missing_padding:
-                    b64_str += '=' * (4 - missing_padding)
-                decoded_str = base64.b64decode(b64_str).decode('utf-8', errors='ignore')
-                for sub_line in decoded_str.splitlines():
-                    sub_clean = sub_line.strip()
-                    if detect_protocol(sub_clean):
-                        all_lines.append(sub_clean)
-            except Exception:
-                pass
+    all_uris = parse_configs_from_text(raw)
+    if not all_uris:
+        return 0, 0
 
     added = 0
+    working_count = 0
     with current_app.app_context():
-        for line_str in all_lines:
+        for line_str in all_uris:
             proto = detect_protocol(line_str)
             if not proto:
                 continue
             host, port = extract_host_port(line_str, proto)
+            lat = test_tcp_connection(host, port) if test_connectivity else None
+            is_working = (lat is not None)
+            
             code = resolve_country(host) or 'NL'
             cname = country_name(code)
+
             existing = Config.query.filter_by(content=line_str).first()
             if not existing:
                 cfg = Config(
@@ -482,27 +611,34 @@ def add_batch_configs(text_block):
                     content=line_str,
                     host=host,
                     port=port,
-                    latency_ms=test_tcp_connection(host, port) or 50.0,
+                    latency_ms=lat,
                     country=cname,
                     country_code=code,
-                    is_working=True,
+                    is_working=is_working,
                     source_url='admin_batch',
                     collected_at=datetime.utcnow(),
                     checked_at=datetime.utcnow(),
                 )
                 db.session.add(cfg)
                 added += 1
+                if is_working:
+                    working_count += 1
             else:
-                existing.is_working = True
+                existing.latency_ms = lat if lat is not None else existing.latency_ms
+                existing.is_working = is_working
                 existing.checked_at = datetime.utcnow()
+                if is_working:
+                    working_count += 1
+
         db.session.commit()
         save_configs_to_repo()
-    return added
+    return added, working_count
 
 
 def probe_all_configs():
     """
     Re-tests TCP connectivity for all configs in DB and updates their status.
+    Ensures non-responding nodes are deactivated (is_working=False).
     """
     from flask import current_app
     with current_app.app_context():
@@ -529,6 +665,7 @@ def probe_all_configs():
                     pass
 
         working_count = 0
+        dead_count = 0
         for c in configs:
             lat = results.get(c.id)
             if lat is not None:
@@ -536,17 +673,13 @@ def probe_all_configs():
                 c.is_working = True
                 working_count += 1
             else:
-                # If network is offline in environment, keep seed configs active
-                if c.source_url == 'seed':
-                    c.is_working = True
-                    working_count += 1
-                else:
-                    c.is_working = False
+                c.is_working = False
+                dead_count += 1
             c.checked_at = datetime.utcnow()
 
         db.session.commit()
         save_configs_to_repo()
-        return {'total': len(configs), 'working': working_count, 'dead': len(configs) - working_count}
+        return {'total': len(configs), 'working': working_count, 'dead': dead_count}
 
 
 test_all_configs = probe_all_configs

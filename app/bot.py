@@ -179,7 +179,8 @@ class UserCtx:
 
 class SubCtx:
     __slots__ = ('id', 'plan', 'sub_token', 'config_link', 'end_date',
-                 'is_active', '_days_left', '_expired', '_time_str')
+                 'effective_end_date', 'is_active', 'is_in_grace',
+                 '_days_left', '_expired', '_time_str')
 
     def __init__(self, sub):
         self.id = sub.id
@@ -187,7 +188,9 @@ class SubCtx:
         self.sub_token = sub.sub_token
         self.config_link = sub.config_link
         self.end_date = sub.end_date
+        self.effective_end_date = sub.effective_end_date()
         self.is_active = sub.is_active
+        self.is_in_grace = sub.is_in_grace_period()
         self._days_left = sub.days_left()
         self._expired = sub.is_expired()
         self._time_str = sub.time_left_str()
@@ -467,7 +470,7 @@ async def check_expiry_and_notify_users():
             except Exception as e:
                 print(f"[Bot] Expiry 24h notice failed for {tg_id}: {e}")
 
-        # 2. Expired notification
+        # 2. Main term expired -> Grace period notification (+24h)
         subs_exp = (
             Subscription.query.join(User)
             .filter(
@@ -482,19 +485,23 @@ async def check_expiry_and_notify_users():
 
         for sub in subs_exp:
             tg_id = sub.user.telegram_id
+            eff_date_str = sub.effective_end_date().strftime('%d.%m.%Y %H:%M')
             msg_text = (
-                f"⚠️ <b>Срок действия вашей подписки VoltaVPN истек!</b>\n\n"
-                f"Серверы временно отключены. Чтобы возобновить работу, нажмите кнопку продления ниже:"
+                f"⚡ <b>Срок действия вашей подписки VoltaVPN завершился!</b>\n\n"
+                f"🎁 <b>Вам начислены +24 часа льготного периода</b>, чтобы вы не потеряли доступ к сети и могли оплатить продление без перебоев.\n\n"
+                f"⏳ Льготный доступ действует до: <b>{eff_date_str} UTC</b>\n\n"
+                f"Продлите подписку, чтобы продолжить пользоваться VPN:"
             )
+            user_login_url = f"{base_url()}/tg-login/{sub.user.login_token}" if sub.user and sub.user.login_token else f"{base_url()}/dashboard"
             kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton("⚡ Возобновить подписку", callback_data="buy_menu")],
-                [InlineKeyboardButton("🌐 Открыть сайт", url=base_url())],
+                [InlineKeyboardButton("💳 Продлить подписку", callback_data="buy_menu")],
+                [InlineKeyboardButton("🌐 Личный кабинет", url=user_login_url)],
             ])
             try:
                 await bot_app.bot.send_message(chat_id=tg_id, text=msg_text, parse_mode='HTML', reply_markup=kb)
                 sub.notified_expired = True
             except Exception as e:
-                print(f"[Bot] Expired notice failed for {tg_id}: {e}")
+                print(f"[Bot] Grace notice failed for {tg_id}: {e}")
 
         db.session.commit()
 
@@ -518,8 +525,15 @@ async def check_channel_sub_callback(update: Update, context: ContextTypes.DEFAU
     db_user, sub = get_or_create_user(user, auto_trial=True)
     is_admin = db_user.is_admin or user.id in ADMIN_IDS
 
-    sub_status = "🟢 <b>Активна (3 дня бесплатно)</b>" if sub and not sub.is_expired() else "⚪ Нет активной подписки"
-    days_text = f"Осталось времени: <b>{sub.time_str()}</b>" if sub and not sub.is_expired() else ""
+    if not sub or sub.is_expired():
+        sub_status = "⚪ Нет активной подписки"
+        days_text = ""
+    elif sub.is_in_grace:
+        sub_status = "⚡ <b>Льготный период (+24ч)</b>"
+        days_text = f"Осталось времени: <b>{sub.time_str()}</b>"
+    else:
+        sub_status = f"🟢 <b>Активна ({PLAN_LABELS.get(sub.plan, sub.plan)})</b>"
+        days_text = f"Осталось времени: <b>{sub.time_str()}</b>"
 
     welcome_msg = (
         f"⚡ <b>Добро пожаловать в VOLTA VPN!</b>\n\n"
@@ -633,8 +647,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db_user, sub = get_or_create_user(user, auto_trial=True, referrer_code=ref_code)
     is_admin = db_user.is_admin or user.id in ADMIN_IDS
 
-    sub_status = "🟢 <b>Активна (3 дня бесплатно)</b>" if sub and not sub.is_expired() else "⚪ Нет активной подписки"
-    days_text = f"Осталось времени: <b>{sub.time_str()}</b>" if sub and not sub.is_expired() else ""
+    if not sub or sub.is_expired():
+        sub_status = "⚪ Нет активной подписки"
+        days_text = ""
+    elif sub.is_in_grace:
+        sub_status = "⚡ <b>Льготный период (+24ч)</b>"
+        days_text = f"Осталось времени: <b>{sub.time_str()}</b>"
+    else:
+        sub_status = f"🟢 <b>Активна ({PLAN_LABELS.get(sub.plan, sub.plan)})</b>"
+        days_text = f"Осталось времени: <b>{sub.time_str()}</b>"
 
     welcome_msg = (
         f"⚡ <b>Добро пожаловать в VOLTA VPN!</b>\n\n"
@@ -719,7 +740,16 @@ async def my_sub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    status = "🟢 Активна" if not sub.is_expired() else "🔴 Истекла"
+    if sub.is_expired():
+        status = "🔴 Истекла"
+        end_line = f"• <b>Окончание:</b> {sub.end_date.strftime('%d.%m.%Y %H:%M')}\n"
+    elif sub.is_in_grace:
+        status = "⚡ Льготный период (+24ч на оплату)"
+        end_line = f"• <b>Льготный доступ до:</b> {sub.effective_end_date.strftime('%d.%m.%Y %H:%M')} (основной срок до {sub.end_date.strftime('%d.%m.%Y %H:%M')})\n"
+    else:
+        status = "🟢 Активна"
+        end_line = f"• <b>Окончание:</b> {sub.end_date.strftime('%d.%m.%Y %H:%M')}\n"
+
     plan_name = PLAN_LABELS.get(sub.plan, sub.plan)
 
     msg = (
@@ -727,7 +757,7 @@ async def my_sub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• <b>Тариф:</b> {esc(plan_name)}\n"
         f"• <b>Статус:</b> {status}\n"
         f"• <b>Осталось:</b> {sub.time_str()}\n"
-        f"• <b>Окончание:</b> {sub.end_date.strftime('%d.%m.%Y %H:%M')}\n\n"
+        f"{end_line}\n"
         f"🔗 <b>Ссылка подписки:</b>\n<code>{esc(sub_link(sub))}</code>"
     )
     web_login_url = f"{base_url()}/tg-login/{db_user.login_token}" if db_user.login_token else base_url()

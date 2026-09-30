@@ -63,20 +63,37 @@
         </div>
 
         {% if sub %}
+        {% if sub.is_in_grace_period() %}
+        <div class="alert alert-warning card-glass border-warning border-opacity-50 text-white p-4 mb-4 rounded-4 shadow-lg d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <i class="bi bi-clock-history text-warning fs-1 flex-shrink-0"></i>
+                <div>
+                    <h5 class="fw-bold text-warning mb-1">Вам предоставлено +24 часа на оплату!</h5>
+                    <p class="mb-0 text-white-75 small">
+                        Основной срок подписки завершён, но соединение продлено на 24 часа (до <strong>{{ sub.effective_end_date().strftime('%d.%m.%Y %H:%M') }}</strong>), чтобы вы могли без помех оплатить продление.
+                    </p>
+                </div>
+            </div>
+            <a href="#plans-section" class="btn btn-warning fw-bold text-dark px-4 py-2 flex-shrink-0">
+                <i class="bi bi-lightning-charge-fill me-1"></i> Продлить сейчас
+            </a>
+        </div>
+        {% endif %}
+
         <div class="row g-4 mb-5">
             <!-- Active Subscription Card -->
             <div class="col-lg-7">
                 <div class="card-glass p-4 p-md-5 h-100 {% if not sub.is_expired() %}card-highlight{% endif %}">
                     <div class="d-flex justify-content-between align-items-start mb-4">
                         <div>
-                            <span class="badge {% if not sub.is_expired() %}badge-neon-emerald{% else %}bg-danger{% endif %} mb-2">
-                                {% if not sub.is_expired() %}🟢 Активна{% else %}🔴 Истекла{% endif %}
+                            <span class="badge {% if sub.is_expired() %}bg-danger{% elif sub.is_in_grace_period() %}bg-warning text-dark{% else %}badge-neon-emerald{% endif %} mb-2">
+                                {% if sub.is_expired() %}🔴 Истекла{% elif sub.is_in_grace_period() %}⚡ Льготный период (+24ч){% else %}🟢 Активна{% endif %}
                             </span>
                             <h3 class="fw-bold text-white mb-1">{{ plans[sub.plan].name if sub.plan in plans else sub.plan }}</h3>
                             <small class="text-white-50">Активировано: {{ sub.created_at.strftime('%d.%m.%Y') }}</small>
                         </div>
                         <div class="text-end">
-                            <span class="fs-2 fw-bold {% if not sub.is_expired() %}text-emerald{% else %}text-danger{% endif %}">
+                            <span class="fs-2 fw-bold {% if sub.is_expired() %}text-danger{% elif sub.is_in_grace_period() %}text-warning{% else %}text-emerald{% endif %}">
                                 {{ sub.time_left_str() }}
                             </span>
                             <span class="d-block text-white-50 small">до окончания</span>
@@ -100,11 +117,15 @@
                     <div class="d-flex flex-wrap gap-3 align-items-center pt-3 border-top border-glass">
                         <div class="d-flex align-items-center gap-2 text-white-50 small">
                             <i class="bi bi-calendar-check text-emerald fs-5"></i>
+                            {% if sub.is_in_grace_period() %}
+                            Льготный доступ до: <strong class="text-warning">{{ sub.effective_end_date().strftime('%d.%m.%Y %H:%M') }}</strong> (основной срок до {{ sub.end_date.strftime('%d.%m.%Y %H:%M') }})
+                            {% else %}
                             Действует до: <strong>{{ sub.end_date.strftime('%d.%m.%Y %H:%M') }}</strong>
+                            {% endif %}
                         </div>
                         <div class="ms-auto">
-                            <a href="/subscribe/1_month" class="btn btn-glass-secondary btn-sm px-3">
-                                Продлить за 199 ₽
+                            <a href="#plans-section" class="btn btn-glass-secondary btn-sm px-3">
+                                Продлить подписку
                             </a>
                         </div>
                     </div>

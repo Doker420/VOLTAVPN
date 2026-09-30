@@ -32,12 +32,14 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
     def active_subscription(self):
-        now = datetime.utcnow()
-        return Subscription.query.filter(
+        # Find latest subscription that has not passed its effective end date (including +24h grace period)
+        sub = Subscription.query.filter(
             Subscription.user_id == self.id,
-            Subscription.is_active == True,
-            Subscription.end_date > now
+            Subscription.is_active == True
         ).order_by(Subscription.end_date.desc()).first()
+        if sub and not sub.is_expired():
+            return sub
+        return None
 
     def latest_subscription(self):
         return Subscription.query.filter_by(user_id=self.id).order_by(Subscription.created_at.desc()).first()
@@ -50,6 +52,7 @@ class Subscription(db.Model):
     sub_token = db.Column(db.String(64), unique=True, nullable=False, default=lambda: uuid.uuid4().hex)
     start_date = db.Column(db.DateTime, default=datetime.utcnow)
     end_date = db.Column(db.DateTime, nullable=False)
+    grace_hours = db.Column(db.Integer, default=24)
     is_active = db.Column(db.Boolean, default=True)
     config_link = db.Column(db.String(500), nullable=True)
     qr_code_path = db.Column(db.String(500), nullable=True)
@@ -59,24 +62,49 @@ class Subscription(db.Model):
     notified_expired = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    def effective_end_date(self):
+        """Returns the ultimate cutoff date including the +24 hours grace period."""
+        hours = self.grace_hours if self.grace_hours is not None else 24
+        return self.end_date + timedelta(hours=hours)
+
+    def is_in_grace_period(self):
+        """Returns True if the main subscription term ended but the user is within +24h grace window."""
+        if not self.is_active:
+            return False
+        now = datetime.utcnow()
+        return self.end_date <= now < self.effective_end_date()
+
+    def is_expired(self):
+        """Returns True only when the full term PLUS the +24 hours grace period has elapsed."""
+        if not self.is_active:
+            return True
+        return datetime.utcnow() >= self.effective_end_date()
+
     def days_left(self):
         if not self.is_active or self.is_expired():
             return 0
-        delta = self.end_date - datetime.utcnow()
-        return max(0, delta.days + (1 if delta.seconds > 0 else 0))
+        now = datetime.utcnow()
+        if now < self.end_date:
+            delta = self.end_date - now
+            return max(1, delta.days + (1 if delta.seconds > 0 else 0))
+        return 1  # 1 day left during grace period
 
     def time_left_str(self):
         if not self.is_active or self.is_expired():
             return "Истекла"
-        delta = self.end_date - datetime.utcnow()
+        now = datetime.utcnow()
+        if self.is_in_grace_period():
+            delta = self.effective_end_date() - now
+            hours = delta.seconds // 3600
+            mins = (delta.seconds % 3600) // 60
+            return f"Льготный период (+{hours}ч {mins}м на оплату)"
+
+        delta = self.end_date - now
         days = delta.days
         hours = delta.seconds // 3600
         if days > 0:
             return f"{days} дн. {hours} ч." if hours > 0 else f"{days} дн."
         return f"{hours} ч." if hours > 0 else "Менее часа"
-
-    def is_expired(self):
-        return datetime.utcnow() > self.end_date
 
 
 class Config(db.Model):

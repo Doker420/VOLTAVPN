@@ -146,10 +146,10 @@ def test_dynamic_subscription_feed(client, app):
     assert 'v2rayNG'.encode('utf-8') in resp_browser.data
     assert 'Быстрый импорт'.encode('utf-8') in resp_browser.data
 
-    # Add new custom config
+    # Add new custom config (explicitly marked working in unit test environment)
     with app.app_context():
         new_uri = "vless://abcdef12-3456-7890-abcd-ef1234567890@jp.volta-node.net:443?type=tcp&security=reality#VoltaVPN-JP-New"
-        add_custom_config(new_uri, country_code='JP')
+        add_custom_config(new_uri, country_code='JP', is_working=True)
 
     # Fetch feed again — it dynamically includes the new node!
     resp2 = client.get(f'/sub/{token}', headers={'User-Agent': 'Karing/1.0'})
@@ -472,5 +472,135 @@ def test_legal_and_knowledge_base_pages(client, app):
     assert resp_qr.mimetype == 'image/png'
     assert len(resp_qr.data) > 100
     assert resp_qr.data[:4] == b'\x89PNG'
+
+
+def test_batch_config_import_and_parser(client, app):
+    """
+    Test parsing and importing of multi-format VPN configs:
+    - Base64 encoded subscription block
+    - Sing-box JSON format outbounds
+    - Strict rejection of dead nodes (is_working=False)
+    """
+    from app.collector import parse_configs_from_text
+
+    # 1. Base64 encoded block
+    raw_vless = "vless://11111111-2222-3333-4444-555555555555@de1.example.com:443?security=reality&sni=test.com#DE1"
+    raw_trojan = "trojan://password123@nl1.example.com:443?security=tls&sni=test.com#NL1"
+    b64_feed = base64.b64encode(f"{raw_vless}\n{raw_trojan}".encode('utf-8')).decode('utf-8')
+
+    parsed_uris = parse_configs_from_text(b64_feed)
+    assert len(parsed_uris) == 2
+    assert any("de1.example.com" in u for u in parsed_uris)
+    assert any("nl1.example.com" in u for u in parsed_uris)
+
+    # 2. Sing-box JSON format
+    json_block = json.dumps({
+        "outbounds": [
+            {
+                "type": "vless",
+                "tag": "SingBox-DE",
+                "server": "singbox.example.com",
+                "server_port": 443,
+                "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                "tls": {
+                    "enabled": True,
+                    "server_name": "gateway.icloud.com",
+                    "reality": {
+                        "public_key": "some_pub_key",
+                        "short_id": "01234567"
+                    }
+                }
+            }
+        ]
+    })
+    parsed_json = parse_configs_from_text(json_block)
+    assert len(parsed_json) == 1
+    assert "singbox.example.com" in parsed_json[0]
+    assert "vless://" in parsed_json[0]
+
+    # 3. Batch import tests with TCP checking
+    with app.app_context():
+        # Inserting dead fake hosts without connectivity test -> added, but is_working=False
+        added, working = add_batch_configs(b64_feed, test_connectivity=True)
+        assert added == 2
+        # Since fake domains are unreachable, working count must be 0
+        assert working == 0
+
+        cfg = Config.query.filter_by(host="de1.example.com").first()
+        assert cfg is not None
+        assert cfg.is_working is False
+
+
+def test_subscription_24h_grace_period_lifecycle(client, app):
+    """
+    Test +24 hours grace period for subscriptions:
+    - Active while now < end_date
+    - In grace period when end_date <= now < end_date + 24h
+    - Retains working VPN configs feed during grace period
+    - Displays grace period indicator and timer
+    - Expired when now >= end_date + 24h
+    """
+    with app.app_context():
+        user = User(
+            username='grace_user',
+            password_hash='dummy_hash',
+            email='grace@example.com',
+            login_token='grace_login_token',
+        )
+        db.session.add(user)
+        db.session.commit()
+
+        # Case 1: Subscription ended 6 hours ago (in +24h grace window)
+        now = datetime.utcnow()
+        sub = Subscription(
+            user_id=user.id,
+            plan='1_month',
+            sub_token='grace_sub_token_123',
+            start_date=now - timedelta(days=30),
+            end_date=now - timedelta(hours=6),
+            grace_hours=24,
+            is_active=True,
+            payment_status='paid',
+        )
+        db.session.add(sub)
+        db.session.commit()
+
+        assert sub.is_in_grace_period() is True
+        assert sub.is_expired() is False
+        assert user.active_subscription() is not None
+        assert user.active_subscription().id == sub.id
+        assert "Льготный период" in sub.time_left_str()
+
+    # Subscription feed should serve working configs during grace period
+    resp_client = client.get('/sub/grace_sub_token_123', headers={'User-Agent': 'v2rayNG/1.8.5'})
+    assert resp_client.status_code == 200
+    assert 'Subscription-Userinfo' in resp_client.headers
+    assert resp_client.headers.get('Profile-Title') == 'VoltaVPN (Льготный период)'
+    decoded = base64.b64decode(resp_client.data).decode('utf-8')
+    assert 'VoltaVPN' in decoded
+
+    # Browser portal should show grace period banner
+    resp_browser = client.get('/sub/grace_sub_token_123', headers={'Accept': 'text/html'})
+    assert resp_browser.status_code == 200
+    assert 'Льготный период'.encode('utf-8') in resp_browser.data
+    assert '+24 часа на оплату'.encode('utf-8') in resp_browser.data
+
+    # Case 2: Subscription ended 25 hours ago (beyond 24h grace window)
+    with app.app_context():
+        sub_obj = Subscription.query.filter_by(sub_token='grace_sub_token_123').first()
+        sub_obj.end_date = datetime.utcnow() - timedelta(hours=25)
+        db.session.commit()
+
+        assert sub_obj.is_in_grace_period() is False
+        assert sub_obj.is_expired() is True
+        assert user.active_subscription() is None
+
+    # Expired feed should return blocked/expired notice
+    resp_expired = client.get('/sub/grace_sub_token_123', headers={'User-Agent': 'v2rayNG/1.8.5'})
+    assert resp_expired.status_code == 200
+    assert 'VoltaVPN (истекла)' in resp_expired.headers.get('Profile-Title', '')
+    decoded_exp = base64.b64decode(resp_expired.data).decode('utf-8')
+    assert 'истекла' in decoded_exp or '00000000-0000-0000-0000-000000000000' in decoded_exp
+
 
 

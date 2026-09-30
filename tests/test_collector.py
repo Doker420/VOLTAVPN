@@ -145,3 +145,25 @@ def test_rename_node_invalid_returns_original():
     result = rename_node(broken, 'vmess', 1)
     assert result == broken
 
+
+def test_parse_configs_from_text_happ_and_multiline():
+    from app.collector import parse_configs_from_text
+
+    text = """
+    # Happ / V2Ray / Clash Configs
+    vless://11111111-2222-3333-4444-555555555555@de.node.com:443?type=tcp&security=reality&sni=icloud.com#DE-Fast
+    
+    vmess://eyJ2IjoiMiIsInBzIjoiVklQLU5MIiwiYWRkIjoibmwtbm9kZS5jb20iLCJwb3J0IjoiNDQzIiwiaWQiOiJhYmNkIn0=
+    
+    ss://YWVzLTEyOC1nY206cGFzc3dvcmQxMjM=@fr.node.com:8388#FR-Node
+    
+    # Invalid line
+    some random comment or html <div class="node"></div>
+    """
+    uris = parse_configs_from_text(text)
+    assert len(uris) == 3
+    assert any("de.node.com" in u for u in uris)
+    assert any("nl-node.com" in u or "vmess://" in u for u in uris)
+    assert any("fr.node.com" in u for u in uris)
+
+
