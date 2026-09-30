@@ -362,6 +362,8 @@ def activate_paid_subscription(payment):
         sub.end_date = sub.end_date + timedelta(days=days_to_add)
         sub.plan = payment.plan
         sub.payment_status = 'paid'
+        sub.notified_24h = False
+        sub.notified_expired = False
     else:
         sub_token = uuid.uuid4().hex
         config_link = f"{base_url}/sub/{sub_token}"
@@ -374,6 +376,8 @@ def activate_paid_subscription(payment):
                 config_link=config_link,
                 is_active=True,
                 payment_status='paid',
+                notified_24h=False,
+                notified_expired=False,
             )
             db.session.add(sub)
         else:
@@ -382,6 +386,8 @@ def activate_paid_subscription(payment):
             sub.end_date = datetime.utcnow() + timedelta(days=days_to_add)
             sub.is_active = True
             sub.payment_status = 'paid'
+            sub.notified_24h = False
+            sub.notified_expired = False
             if not sub.config_link:
                 sub.config_link = config_link
 

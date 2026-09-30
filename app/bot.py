@@ -192,19 +192,27 @@ def get_or_create_user(telegram_user, auto_trial=True):
 
 def notify_admins_support(msg):
     """
-    Sends notification to Telegram bot admins about a new support message.
+    Sends notification to Telegram bot admins about a new support message with quick reply button.
     """
     if not bot_app or not ADMIN_IDS:
         return
 
     text_preview = (msg.text[:300] + '...') if len(msg.text) > 300 else msg.text
+    email_line = f"📧 <b>Email:</b> {esc(msg.sender_email)}\n" if getattr(msg, 'sender_email', None) else ""
     notify_text = (
         f"📩 <b>Новое сообщение в поддержку сайта!</b>\n\n"
         f"👤 <b>От:</b> {esc(msg.sender_name)} ({esc(msg.sender_type)})\n"
+        f"{email_line}"
         f"🔑 <b>Сессия:</b> <code>{esc(msg.session_id)}</code>\n"
         f"💬 <b>Текст:</b>\n<i>{esc(text_preview)}</i>\n\n"
-        f"👉 <b>Ответить:</b> <code>/reply {esc(msg.session_id)} Ваш ответ</code>"
+        f"👉 <b>Ответить:</b> нажмите кнопку ниже или введите:\n<code>/reply {esc(msg.session_id)} Ваш ответ</code>"
     )
+
+    # Inline button for 1-tap admin reply
+    safe_sess = msg.session_id[:40]
+    reply_kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 Ответить на сообщение", callback_data=f"rep_{safe_sess}")]
+    ])
 
     async def _send():
         for admin_id in ADMIN_IDS:
@@ -213,6 +221,7 @@ def notify_admins_support(msg):
                     chat_id=admin_id,
                     text=notify_text,
                     parse_mode='HTML',
+                    reply_markup=reply_kb,
                 )
             except Exception as e:
                 print(f"[Bot] Failed to send support alert to {admin_id}: {e}")
@@ -226,6 +235,101 @@ def notify_admins_support(msg):
             threading.Thread(target=lambda: asyncio.run(_send()), daemon=True).start()
     except Exception as e:
         print(f"[Bot] Error dispatching support alert: {e}")
+
+
+def dispatch_expiry_checks():
+    """
+    Triggered periodically by scheduler to notify users before/upon expiration.
+    """
+    if not bot_app:
+        return
+
+    async def _run():
+        await check_expiry_and_notify_users()
+
+    try:
+        loop = getattr(bot_app, '_custom_loop', None)
+        if loop and loop.is_running():
+            asyncio.run_coroutine_threadsafe(_run(), loop)
+        else:
+            threading.Thread(target=lambda: asyncio.run(_run()), daemon=True).start()
+    except Exception as e:
+        print(f"[Bot] Expiry check dispatch error: {e}")
+
+
+async def check_expiry_and_notify_users():
+    """
+    Checks active subscriptions of verified Telegram users and sends renewal alerts.
+    """
+    if not bot_app or not flask_app:
+        return
+
+    with flask_app.app_context():
+        now = datetime.utcnow()
+        # 1. 24h warning
+        threshold_24h = now + timedelta(hours=24)
+        subs_24h = (
+            Subscription.query.join(User)
+            .filter(
+                Subscription.is_active == True,
+                Subscription.end_date > now,
+                Subscription.end_date <= threshold_24h,
+                Subscription.notified_24h == False,
+                User.telegram_id.isnot(None),
+                User.telegram_verified == True,
+            )
+            .all()
+        )
+
+        for sub in subs_24h:
+            hours_left = max(1, int((sub.end_date - now).total_seconds() // 3600))
+            tg_id = sub.user.telegram_id
+            msg_text = (
+                f"⏳ <b>Внимание! Ваша подписка VoltaVPN заканчивается через {hours_left} ч.</b>\n\n"
+                f"Тариф: <b>{sub.plan}</b>\n"
+                f"Окончание: <b>{sub.end_date.strftime('%d.%m.%Y %H:%M')} UTC</b>\n\n"
+                f"Продлите подписку, чтобы сохранить бесперебойный доступ к VPN:"
+            )
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("💳 Продлить подписку", callback_data="buy_menu")],
+                [InlineKeyboardButton("🌐 Личный кабинет", url=f"{base_url()}/dashboard")],
+            ])
+            try:
+                await bot_app.bot.send_message(chat_id=tg_id, text=msg_text, parse_mode='HTML', reply_markup=kb)
+                sub.notified_24h = True
+            except Exception as e:
+                print(f"[Bot] Expiry 24h notice failed for {tg_id}: {e}")
+
+        # 2. Expired notification
+        subs_exp = (
+            Subscription.query.join(User)
+            .filter(
+                Subscription.is_active == True,
+                Subscription.end_date <= now,
+                Subscription.notified_expired == False,
+                User.telegram_id.isnot(None),
+                User.telegram_verified == True,
+            )
+            .all()
+        )
+
+        for sub in subs_exp:
+            tg_id = sub.user.telegram_id
+            msg_text = (
+                f"⚠️ <b>Срок действия вашей подписки VoltaVPN истек!</b>\n\n"
+                f"Серверы временно отключены. Чтобы возобновить работу, нажмите кнопку продления ниже:"
+            )
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("⚡ Возобновить подписку", callback_data="buy_menu")],
+                [InlineKeyboardButton("🌐 Открыть сайт", url=base_url())],
+            ])
+            try:
+                await bot_app.bot.send_message(chat_id=tg_id, text=msg_text, parse_mode='HTML', reply_markup=kb)
+                sub.notified_expired = True
+            except Exception as e:
+                print(f"[Bot] Expired notice failed for {tg_id}: {e}")
+
+        db.session.commit()
 
 
 # ----------------------------- Bot Handlers -----------------------------
@@ -897,11 +1001,54 @@ async def invite_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
 
 
+async def admin_reply_btn_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user = update.effective_user
+    if user.id not in ADMIN_IDS:
+        await query.answer("У вас нет прав администратора.", show_alert=True)
+        return
+
+    session_id = query.data.replace('rep_', '')
+    context.user_data['pending_reply_session'] = session_id
+
+    await query.message.reply_text(
+        f"✍️ <b>Режим быстрого ответа:</b>\n\n"
+        f"🔑 <b>Сессия:</b> <code>{esc(session_id)}</code>\n\n"
+        f"<i>Напишите текст ответа следующим сообщением — он моментально отобразится у пользователя в онлайн-чате на сайте:</i>",
+        parse_mode='HTML'
+    )
+
+
 async def handle_text_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or '').strip()
     user = update.effective_user
 
-    # If admin replied to a message in Telegram
+    # If admin was in pending reply mode via button
+    if user.id in ADMIN_IDS and context.user_data.get('pending_reply_session'):
+        session_id = context.user_data.pop('pending_reply_session')
+        with flask_app.app_context():
+            msg = SupportMessage(
+                session_id=session_id,
+                user_id=None,
+                sender_type='admin',
+                sender_name=f"Поддержка VoltaVPN ({user.username or user.first_name})",
+                text=text,
+                is_read=True,
+            )
+            db.session.add(msg)
+            SupportMessage.query.filter_by(session_id=session_id, sender_type='user').update({'is_read': True})
+            SupportMessage.query.filter_by(session_id=session_id, sender_type='guest').update({'is_read': True})
+            db.session.commit()
+        await update.message.reply_text(
+            f"✅ <b>Ответ успешно отправлен в онлайн-чат!</b>\n\n"
+            f"🔑 Сессия: <code>{esc(session_id)}</code>\n"
+            f"💬 Текст: <i>{esc(text)}</i>",
+            parse_mode='HTML'
+        )
+        return
+
+    # If admin replied to a message in Telegram via swipe/reply
     if user.id in ADMIN_IDS and update.message.reply_to_message:
         replied_text = update.message.reply_to_message.text or ''
         import re
@@ -913,11 +1060,13 @@ async def handle_text_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
                     session_id=session_id,
                     user_id=None,
                     sender_type='admin',
-                    sender_name=f"Поддержка VOLTA ({user.username or user.first_name})",
+                    sender_name=f"Поддержка VoltaVPN ({user.username or user.first_name})",
                     text=text,
                     is_read=True,
                 )
                 db.session.add(msg)
+                SupportMessage.query.filter_by(session_id=session_id, sender_type='user').update({'is_read': True})
+                SupportMessage.query.filter_by(session_id=session_id, sender_type='guest').update({'is_read': True})
                 db.session.commit()
             await update.message.reply_text(f"✅ Ответ отправлен в сессию <code>{esc(session_id)}</code>.", parse_mode='HTML')
             return
@@ -981,6 +1130,7 @@ def init_bot(app):
     bot_app.add_handler(CallbackQueryHandler(guide_callback, pattern=r"^guide_"))
     bot_app.add_handler(CallbackQueryHandler(faq_command, pattern=r"^faq_main$"))
     bot_app.add_handler(CallbackQueryHandler(faq_callback, pattern=r"^faq_"))
+    bot_app.add_handler(CallbackQueryHandler(admin_reply_btn_callback, pattern=r"^rep_"))
     bot_app.add_handler(CallbackQueryHandler(plan_callback, pattern=r"^(plan_|buy_menu|get_qr)"))
     bot_app.add_handler(CallbackQueryHandler(payment_callback, pattern=r"^pay_"))
     bot_app.add_handler(CallbackQueryHandler(check_pay_callback, pattern=r"^checkpay_"))

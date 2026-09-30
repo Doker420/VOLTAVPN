@@ -72,6 +72,37 @@ def _run_lightweight_migrations():
             except Exception as e:
                 print(f"[Migrate] country_code add skipped: {e}")
 
+    # Subscription notification columns
+    try:
+        sub_cols = [c['name'] for c in inspector.get_columns('subscription')]
+    except Exception:
+        sub_cols = []
+    if sub_cols:
+        if 'notified_24h' not in sub_cols:
+            try:
+                db.session.execute(text('ALTER TABLE subscription ADD COLUMN notified_24h BOOLEAN DEFAULT 0'))
+                db.session.commit()
+            except Exception as e:
+                print(f"[Migrate] notified_24h add skipped: {e}")
+        if 'notified_expired' not in sub_cols:
+            try:
+                db.session.execute(text('ALTER TABLE subscription ADD COLUMN notified_expired BOOLEAN DEFAULT 0'))
+                db.session.commit()
+            except Exception as e:
+                print(f"[Migrate] notified_expired add skipped: {e}")
+
+    # SupportMessage email column
+    try:
+        sup_cols = [c['name'] for c in inspector.get_columns('support_message')]
+    except Exception:
+        sup_cols = []
+    if sup_cols and 'sender_email' not in sup_cols:
+        try:
+            db.session.execute(text('ALTER TABLE support_message ADD COLUMN sender_email VARCHAR(120)'))
+            db.session.commit()
+        except Exception as e:
+            print(f"[Migrate] sender_email add skipped: {e}")
+
 def create_app():
     flask_app = Flask(__name__)
     flask_app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'volta-secret-key-2026')
@@ -119,6 +150,8 @@ def create_app():
         if not scheduler.running:
             try:
                 scheduler.add_job(func=collect_configs, trigger='interval', hours=1, id='config_collector')
+                from app.bot import dispatch_expiry_checks
+                scheduler.add_job(func=dispatch_expiry_checks, trigger='interval', minutes=30, id='expiry_notifier')
                 scheduler.start()
             except Exception as e:
                 print(f"[Scheduler] Start notice: {e}")

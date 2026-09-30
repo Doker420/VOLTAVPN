@@ -52,6 +52,8 @@ class Subscription(db.Model):
     qr_code_path = db.Column(db.String(500), nullable=True)
     payment_id = db.Column(db.String(100), nullable=True)
     payment_status = db.Column(db.String(50), default='pending')
+    notified_24h = db.Column(db.Boolean, default=False)
+    notified_expired = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def days_left(self):
@@ -151,6 +153,7 @@ class SupportMessage(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     sender_type = db.Column(db.String(20), nullable=False, default='user')  # 'user', 'guest', 'admin', 'bot'
     sender_name = db.Column(db.String(80), nullable=False, default='Пользователь')
+    sender_email = db.Column(db.String(120), nullable=True)
     text = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -164,6 +167,7 @@ class SupportMessage(db.Model):
             'user_id': self.user_id,
             'sender_type': self.sender_type,
             'sender_name': self.sender_name,
+            'sender_email': self.sender_email,
             'text': self.text,
             'is_read': self.is_read,
             'created_at': self.created_at.strftime('%H:%M %d.%m.%Y'),

@@ -151,6 +151,66 @@
         {% endif %}
         {% endif %}
 
+        <!-- Telegram Integration Card -->
+        <div class="card-glass p-4 p-md-5 mb-5" id="telegram-link" style="border: 1px solid rgba(56, 189, 248, 0.35);">
+            <div class="row align-items-center g-4">
+                <div class="col-lg-8">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="p-3 rounded-4 bg-dark text-volt fs-2 border border-glass">
+                            <i class="bi bi-telegram"></i>
+                        </div>
+                        <div>
+                            {% if current_user.telegram_verified and current_user.telegram_id %}
+                            <span class="badge badge-neon-emerald mb-1">🟢 Telegram привязан</span>
+                            <h4 class="fw-bold text-white mb-0">Telegram-аккаунт подключен</h4>
+                            {% else %}
+                            <span class="badge badge-neon-indigo mb-1">🔔 Уведомления об окончании</span>
+                            <h4 class="fw-bold text-white mb-0">Привяжите Telegram-аккаунт</h4>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if current_user.telegram_verified and current_user.telegram_id %}
+                    <p class="text-white-50 leading-relaxed mb-3">
+                        Ваш Telegram-аккаунт (ID: <code>{{ current_user.telegram_id }}</code>) успешно синхронизирован. Вы будете получать автоматические уведомления за 24 часа до окончания подписки, а также можете управлять серверами прямо в боте.
+                    </p>
+                    <div class="d-flex flex-wrap gap-3">
+                        <a href="https://t.me/{{ bot_username if bot_username else 'volta_vpn_bot' }}" target="_blank" class="btn btn-glow-volt btn-sm px-3">
+                            <i class="bi bi-robot me-1"></i> Открыть Telegram-бот
+                        </a>
+                        <form method="POST" action="/unlink-telegram" onsubmit="return confirm('Вы уверены, что хотите отвязать Telegram?');">
+                            <button type="submit" class="btn btn-glass-secondary btn-sm text-danger">
+                                <i class="bi bi-x-circle me-1"></i> Отвязать Telegram
+                            </button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <p class="text-white-50 leading-relaxed mb-4">
+                        Привяжите ваш Telegram, чтобы бот напоминал об окончании подписки, позволял продлевать доступ в 1 клик и входить в личный кабинет без ввода пароля!
+                    </p>
+                    <div class="d-flex flex-wrap gap-3 align-items-center">
+                        <a href="https://t.me/{{ bot_username if bot_username else 'volta_vpn_bot' }}?start=link_{{ current_user.link_code }}" target="_blank" class="btn btn-glow-primary px-4 py-2">
+                            <i class="bi bi-telegram me-1"></i> Привязать Telegram в 1 клик
+                        </a>
+                        <a href="/link-telegram" class="btn btn-glass-secondary btn-sm px-3 py-2">
+                            <i class="bi bi-qr-code me-1"></i> QR-код и код привязки
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="col-lg-4 text-center">
+                    <div class="p-3 bg-dark rounded-4 border border-glass text-start small text-white-50">
+                        <div class="text-white fw-bold mb-2"><i class="bi bi-bell-fill text-warning me-1"></i> Возможности бота:</div>
+                        <div class="d-flex align-items-center gap-2 mb-1"><i class="bi bi-check2 text-emerald"></i> Уведомления за 24ч до окончания</div>
+                        <div class="d-flex align-items-center gap-2 mb-1"><i class="bi bi-check2 text-emerald"></i> Моментальный вход по ссылке</div>
+                        <div class="d-flex align-items-center gap-2 mb-1"><i class="bi bi-check2 text-emerald"></i> Получение QR-кода подписки</div>
+                        <div class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-emerald"></i> Продление подписки в Telegram</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {% if countries %}
         <div class="card-glass p-4 p-md-5 mb-5">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">

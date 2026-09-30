@@ -130,6 +130,8 @@ def grant_trial(user, telegram_id=None, ip=None, days=TRIAL_DAYS):
             qr_code_path=qr_path,
             is_active=True,
             payment_status='paid',
+            notified_24h=False,
+            notified_expired=False,
         )
         db.session.add(sub)
     else:
@@ -140,6 +142,8 @@ def grant_trial(user, telegram_id=None, ip=None, days=TRIAL_DAYS):
         sub.payment_status = 'paid'
         sub.config_link = config_link
         sub.qr_code_path = qr_path
+        sub.notified_24h = False
+        sub.notified_expired = False
 
     user.is_trial_used = True
     tg = telegram_id or user.telegram_id
@@ -329,10 +333,8 @@ def register_routes(flask_app):
             current_user.link_code = uuid.uuid4().hex[:12]
             db.session.commit()
 
-        bot_username = current_app.config.get('BOT_USERNAME')
-        deep_link = None
-        if bot_username:
-            deep_link = f"https://t.me/{bot_username}?start=link_{current_user.link_code}"
+        bot_username = current_app.config.get('BOT_USERNAME') or os.getenv('BOT_USERNAME', 'volta_vpn_bot')
+        deep_link = f"https://t.me/{bot_username}?start=link_{current_user.link_code}"
 
         sub = Subscription.query.filter_by(user_id=current_user.id).order_by(Subscription.created_at.desc()).first()
         return render_template(
@@ -343,6 +345,16 @@ def register_routes(flask_app):
             verified=current_user.telegram_verified,
             has_sub=bool(sub),
         )
+
+    @flask_app.route('/unlink-telegram', methods=['POST'])
+    @login_required
+    def unlink_telegram():
+        current_user.telegram_id = None
+        current_user.telegram_verified = False
+        current_user.link_code = uuid.uuid4().hex[:12]
+        db.session.commit()
+        flash('Telegram-аккаунт успешно отвязан.', 'info')
+        return redirect(url_for('dashboard'))
 
     @flask_app.route('/login', methods=['POST'])
     def login():
@@ -380,6 +392,10 @@ def register_routes(flask_app):
     @flask_app.route('/dashboard')
     @login_required
     def dashboard():
+        if not current_user.link_code:
+            current_user.link_code = uuid.uuid4().hex[:12]
+            db.session.commit()
+
         sub = Subscription.query.filter_by(user_id=current_user.id).order_by(Subscription.created_at.desc()).first()
 
         # If user has no subscription yet, grant 3 days trial
@@ -403,6 +419,7 @@ def register_routes(flask_app):
         countries = _country_breakdown()
         ref_info = _referral_info(current_user)
         support_info = _support_contacts()
+        bot_username = current_app.config.get('BOT_USERNAME') or os.getenv('BOT_USERNAME', 'volta_vpn_bot')
 
         return render_template(
             'dashboard.html',
@@ -414,6 +431,7 @@ def register_routes(flask_app):
             countries=countries,
             ref_info=ref_info,
             support_info=support_info,
+            bot_username=bot_username,
         )
 
     @flask_app.route('/subscribe/<plan_id>')
@@ -650,15 +668,31 @@ def register_routes(flask_app):
             else:
                 session_id = f"guest_{uuid.uuid4().hex[:12]}"
 
-        user_id = current_user.id if current_user.is_authenticated else None
-        sender_type = 'user' if current_user.is_authenticated else 'guest'
-        sender_name = current_user.username if current_user.is_authenticated else 'Гость'
+        sender_name = (data.get('name') or '').strip()
+        sender_email = (data.get('email') or '').strip()
+
+        if current_user.is_authenticated:
+            user_id = current_user.id
+            sender_type = 'user'
+            if not sender_name:
+                sender_name = current_user.username
+            if not sender_email and current_user.email:
+                sender_email = current_user.email
+            elif sender_email and not current_user.email:
+                current_user.email = sender_email
+                db.session.commit()
+        else:
+            user_id = None
+            sender_type = 'guest'
+            if not sender_name:
+                sender_name = 'Посетитель'
 
         msg = SupportMessage(
             session_id=session_id,
             user_id=user_id,
             sender_type=sender_type,
             sender_name=sender_name,
+            sender_email=sender_email if sender_email else None,
             text=text,
             is_read=False,
         )
@@ -895,6 +929,8 @@ def register_routes(flask_app):
         if sub and sub.is_active and not sub.is_expired():
             sub.end_date = sub.end_date + timedelta(days=days)
             sub.plan = plan_name
+            sub.notified_24h = False
+            sub.notified_expired = False
         else:
             sub_token = uuid.uuid4().hex
             config_link = f"{base}/sub/{sub_token}"
@@ -910,6 +946,8 @@ def register_routes(flask_app):
                     qr_code_path=qr_path,
                     is_active=True,
                     payment_status='paid',
+                    notified_24h=False,
+                    notified_expired=False,
                 )
                 db.session.add(sub)
             else:
@@ -920,6 +958,8 @@ def register_routes(flask_app):
                 sub.payment_status = 'paid'
                 sub.config_link = config_link
                 sub.qr_code_path = qr_path
+                sub.notified_24h = False
+                sub.notified_expired = False
 
         db.session.commit()
         flash(f'Подписка пользователя {user.username} продлена на {days} дн. (до {sub.end_date.strftime("%d.%m.%Y")}).', 'success')

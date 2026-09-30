@@ -199,14 +199,16 @@
                         <div class="tab-pane fade show active" id="loginTab" role="tabpanel">
                             <form method="POST" action="/login">
                                 <div class="mb-3">
-                                    <label class="form-label text-white-50 small">Логин или Email</label>
-                                    <input type="text" name="username" class="form-control copy-field text-white px-3 py-2" required placeholder="Введите логин или почту">
+                                    <label class="auth-label"><i class="bi bi-person-fill text-volt me-1"></i> Логин или Email</label>
+                                    <input type="text" name="username" class="form-control auth-input" required placeholder="Введите ваш логин или почту">
                                 </div>
                                 <div class="mb-4">
-                                    <label class="form-label text-white-50 small">Пароль</label>
-                                    <input type="password" name="password" class="form-control copy-field text-white px-3 py-2" required placeholder="••••••••">
+                                    <label class="auth-label"><i class="bi bi-key-fill text-volt me-1"></i> Пароль</label>
+                                    <input type="password" name="password" class="form-control auth-input" required placeholder="••••••••">
                                 </div>
-                                <button type="submit" class="btn btn-glow-volt w-100 py-3">Войти в аккаунт</button>
+                                <button type="submit" class="btn btn-glow-volt w-100 py-3 fw-bold">
+                                    <i class="bi bi-box-arrow-in-right me-1"></i> Войти в аккаунт
+                                </button>
                             </form>
                         </div>
 
@@ -216,26 +218,26 @@
                                 <div class="alert card-glass border-0 text-white small mb-3 py-2" style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3) !important;">
                                     <i class="bi bi-gift-fill text-emerald me-1"></i> При регистрации вы сразу получаете <strong>бесплатный период 3 дня</strong> без ограничений!
                                 </div>
-                                <div class="mb-2">
-                                    <label class="form-label text-white-50 small">Имя пользователя (Логин) <span class="text-danger">*</span></label>
-                                    <input type="text" name="username" class="form-control copy-field text-white px-3 py-2" required minlength="3" placeholder="Придумайте логин">
+                                <div class="mb-3">
+                                    <label class="auth-label"><i class="bi bi-person-badge text-volt me-1"></i> Имя пользователя (Логин) <span class="text-danger">*</span></label>
+                                    <input type="text" name="username" class="form-control auth-input" required minlength="3" placeholder="Придумайте уникальный логин">
                                 </div>
-                                <div class="mb-2">
-                                    <label class="form-label text-white-50 small">Email (для восстановления, необязательно)</label>
-                                    <input type="email" name="email" class="form-control copy-field text-white px-3 py-2" placeholder="name@example.com">
+                                <div class="mb-3">
+                                    <label class="auth-label"><i class="bi bi-envelope text-volt me-1"></i> Email (для восстановления и чеков)</label>
+                                    <input type="email" name="email" class="form-control auth-input" placeholder="name@example.com">
                                 </div>
-                                <div class="mb-2">
-                                    <label class="form-label text-white-50 small">Пароль <span class="text-danger">*</span></label>
-                                    <input type="password" name="password" class="form-control copy-field text-white px-3 py-2" required minlength="4" placeholder="••••••••">
+                                <div class="mb-3">
+                                    <label class="auth-label"><i class="bi bi-shield-lock text-volt me-1"></i> Пароль <span class="text-danger">*</span></label>
+                                    <input type="password" name="password" class="form-control auth-input" required minlength="4" placeholder="••••••••">
                                 </div>
-                                <div class="mb-4">
-                                    <label class="form-label text-white-50 small">Повторите пароль</label>
-                                    <input type="password" name="confirm_password" class="form-control copy-field text-white px-3 py-2" placeholder="••••••••">
+                                <div class="mb-3">
+                                    <label class="auth-label"><i class="bi bi-check-circle text-volt me-1"></i> Повторите пароль</label>
+                                    <input type="password" name="confirm_password" class="form-control auth-input" placeholder="••••••••">
                                 </div>
                                 <div class="form-text text-white-50 small mb-3">
                                     Нажимая кнопку регистрации, вы принимаете <a href="/terms" target="_blank" class="text-volt text-decoration-none">Пользовательское соглашение</a> и <a href="/privacy" target="_blank" class="text-volt text-decoration-none">Политику конфиденциальности</a>.
                                 </div>
-                                <button type="submit" class="btn btn-glow-emerald w-100 py-3">
+                                <button type="submit" class="btn btn-glow-emerald w-100 py-3 fw-bold">
                                     <i class="bi bi-lightning-charge-fill me-1"></i> Зарегистрироваться (3 дня бесплатно)
                                 </button>
                             </form>
@@ -283,21 +285,48 @@
                 </div>
             </div>
 
-            <!-- Messages Area -->
-            <div id="supportMessages" class="support-messages-body p-3">
-                <div class="support-msg support-msg-system text-center small text-white-50 my-2">
-                    Здравствуйте! Чем мы можем вам помочь? Напишите вопрос здесь или на email.
+            <!-- Pre-chat Contact Info Form (if not logged in / not filled yet) -->
+            <div id="supportPreChat" class="p-4" style="display:none;">
+                <div class="text-center mb-3">
+                    <div class="p-2 rounded-circle bg-dark d-inline-block border border-glass mb-2">
+                        <i class="bi bi-person-lines-fill text-volt fs-3"></i>
+                    </div>
+                    <h6 class="fw-bold text-white mb-1">Представьтесь для связи</h6>
+                    <small class="text-white-50">Укажите имя и email, чтобы оператор мог продублировать ответ:</small>
                 </div>
-            </div>
-
-            <!-- Input Box -->
-            <div class="support-input-area p-2 border-top border-glass">
-                <form id="supportForm" onsubmit="sendSupportMessage(event)" class="d-flex gap-2">
-                    <input type="text" id="supportInputText" class="form-control form-control-sm copy-field text-white" placeholder="Напишите сообщение..." required autocomplete="off">
-                    <button type="submit" class="btn btn-sm btn-glow-volt px-3" id="supportSendBtn">
-                        <i class="bi bi-send-fill"></i>
+                <form id="supportContactForm" onsubmit="saveSupportContactInfo(event)">
+                    <div class="mb-3">
+                        <label class="auth-label"><i class="bi bi-person-fill text-volt me-1"></i> Ваше имя <span class="text-danger">*</span></label>
+                        <input type="text" id="preChatName" class="form-control auth-input" required minlength="2" placeholder="Например: Алексей">
+                    </div>
+                    <div class="mb-3">
+                        <label class="auth-label"><i class="bi bi-envelope-fill text-volt me-1"></i> Ваш Email <span class="text-danger">*</span></label>
+                        <input type="email" id="preChatEmail" class="form-control auth-input" required placeholder="alex@example.com">
+                    </div>
+                    <button type="submit" class="btn btn-glow-volt w-100 py-2 fw-bold">
+                        <i class="bi bi-chat-dots-fill me-1"></i> Начать диалог
                     </button>
                 </form>
+            </div>
+
+            <!-- Active Chat Area -->
+            <div id="supportActiveChat" style="display:flex; flex-direction:column; flex:1; min-height:0;">
+                <!-- Messages Area -->
+                <div id="supportMessages" class="support-messages-body p-3">
+                    <div class="support-msg support-msg-system text-center small text-white-50 my-2">
+                        Здравствуйте! Чем мы можем вам помочь? Напишите вопрос здесь или на email.
+                    </div>
+                </div>
+
+                <!-- Input Box -->
+                <div class="support-input-area p-2 border-top border-glass">
+                    <form id="supportForm" onsubmit="sendSupportMessage(event)" class="d-flex gap-2">
+                        <input type="text" id="supportInputText" class="form-control auth-input text-white" placeholder="Напишите сообщение..." required autocomplete="off" style="padding: 8px 12px !important; font-size: 0.9rem !important;">
+                        <button type="submit" class="btn btn-sm btn-glow-volt px-3" id="supportSendBtn">
+                            <i class="bi bi-send-fill"></i>
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -333,10 +362,60 @@
     let supportChatOpen = false;
     let supportPollTimer = null;
     let supportSessionId = localStorage.getItem('volta_support_session') || '';
+    let supportUserName = localStorage.getItem('volta_support_name') || '';
+    let supportUserEmail = localStorage.getItem('volta_support_email') || '';
+
     {% if current_user.is_authenticated %}
     supportSessionId = 'user_{{ current_user.id }}';
+    supportUserName = '{{ current_user.username }}';
+    supportUserEmail = '{{ current_user.email or "" }}';
     localStorage.setItem('volta_support_session', supportSessionId);
+    if (supportUserName) localStorage.setItem('volta_support_name', supportUserName);
+    if (supportUserEmail) localStorage.setItem('volta_support_email', supportUserEmail);
     {% endif %}
+
+    function checkSupportPreChat() {
+        const preBox = document.getElementById('supportPreChat');
+        const chatBox = document.getElementById('supportActiveChat');
+        {% if current_user.is_authenticated %}
+        if (preBox) preBox.style.display = 'none';
+        if (chatBox) chatBox.style.display = 'flex';
+        return true;
+        {% else %}
+        if (supportUserName && supportUserEmail) {
+            if (preBox) preBox.style.display = 'none';
+            if (chatBox) chatBox.style.display = 'flex';
+            return true;
+        } else {
+            if (preBox) preBox.style.display = 'block';
+            if (chatBox) chatBox.style.display = 'none';
+            return false;
+        }
+        {% endif %}
+    }
+
+    function saveSupportContactInfo(e) {
+        if (e) e.preventDefault();
+        const nameInp = document.getElementById('preChatName');
+        const emailInp = document.getElementById('preChatEmail');
+        if (!nameInp || !emailInp) return;
+        const nameVal = nameInp.value.trim();
+        const emailVal = emailInp.value.trim();
+        if (!nameVal || !emailVal) return;
+
+        supportUserName = nameVal;
+        supportUserEmail = emailVal;
+        localStorage.setItem('volta_support_name', supportUserName);
+        localStorage.setItem('volta_support_email', supportUserEmail);
+
+        checkSupportPreChat();
+        fetchSupportMessages();
+        startSupportPolling();
+        setTimeout(() => {
+            const inp = document.getElementById('supportInputText');
+            if (inp) inp.focus();
+        }, 100);
+    }
 
     function toggleSupportChat() {
         supportChatOpen = !supportChatOpen;
@@ -346,16 +425,25 @@
             box.style.display = 'flex';
             icon.className = 'bi bi-x-lg fs-4';
             document.getElementById('supportUnreadBadge').style.display = 'none';
-            fetchSupportMessages();
-            startSupportPolling();
-            setTimeout(() => {
-                const inp = document.getElementById('supportInputText');
-                if (inp) inp.focus();
-            }, 100);
+            const ready = checkSupportPreChat();
+            if (ready) {
+                fetchSupportMessages();
+                startSupportPolling();
+                setTimeout(() => {
+                    const inp = document.getElementById('supportInputText');
+                    if (inp) inp.focus();
+                }, 100);
+            }
         } else {
             box.style.display = 'none';
             icon.className = 'bi bi-chat-dots-fill fs-4';
             stopSupportPolling();
+        }
+    }
+
+    function openSupportChat() {
+        if (!supportChatOpen) {
+            toggleSupportChat();
         }
     }
 
@@ -377,7 +465,7 @@
         const container = document.getElementById('supportMessages');
         if (!container) return;
 
-        let html = '<div class="support-msg support-msg-system text-center small text-white-50 my-2">Служба поддержки VOLTA · Задайте вопрос в реальном времени</div>';
+        let html = '<div class="support-msg support-msg-system text-center small text-white-50 my-2">Служба поддержки VoltaVPN · Онлайн</div>';
         messages.forEach(m => {
             const isAdmin = m.sender_type === 'admin';
             const bubbleClass = isAdmin ? 'msg-admin' : 'msg-user';
@@ -410,6 +498,8 @@
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 session_id: supportSessionId,
+                name: supportUserName,
+                email: supportUserEmail,
                 text: text
             })
         })

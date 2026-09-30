@@ -234,26 +234,31 @@ def test_yoomoney_payment_creation_and_webhook(client, app):
 
 def test_support_chat_realtime_api(client, app):
     """
-    Test Support Chat: user/guest sends message, messages are retrieved,
-    and admin replies to conversation thread.
+    Test Support Chat: user/guest sends message with Name & Email,
+    messages are retrieved with sender_email, and admin replies to conversation thread.
     """
     session_id = 'test_guest_session_1'
 
-    # 1. Guest sends message
+    # 1. Guest sends message with name and email
     resp = client.post('/api/support/send', json={
         'session_id': session_id,
+        'name': 'Алексей',
+        'email': 'alex@example.com',
         'text': 'Здравствуйте! Как настроить VPN на iPhone?'
     })
     assert resp.status_code == 200
     data = resp.get_json()
     assert data['status'] == 'ok'
     assert data['message']['text'] == 'Здравствуйте! Как настроить VPN на iPhone?'
+    assert data['message']['sender_name'] == 'Алексей'
+    assert data['message']['sender_email'] == 'alex@example.com'
 
     # 2. Fetch messages in session
     resp2 = client.get(f'/api/support/messages?session_id={session_id}')
     assert resp2.status_code == 200
     messages = resp2.get_json()['messages']
     assert len(messages) == 1
+    assert messages[0]['sender_email'] == 'alex@example.com'
 
     # 3. Create admin user and login
     with app.app_context():
@@ -284,6 +289,26 @@ def test_support_chat_realtime_api(client, app):
     assert len(all_msgs) == 2
     assert all_msgs[1]['sender_type'] == 'admin'
     assert 'Karing' in all_msgs[1]['text']
+
+
+def test_telegram_unlink_flow(client, app):
+    """
+    Test Telegram unlinking route in dashboard.
+    """
+    with app.app_context():
+        user = User(username='tg_linked_user', telegram_id=55544433, telegram_verified=True)
+        user.set_password('secret123')
+        db.session.add(user)
+        db.session.commit()
+
+    client.post('/login', data={'username': 'tg_linked_user', 'password': 'secret123'})
+    resp = client.post('/unlink-telegram', follow_redirects=True)
+    assert resp.status_code == 200
+
+    with app.app_context():
+        updated = User.query.filter_by(username='tg_linked_user').first()
+        assert updated.telegram_id is None
+        assert updated.telegram_verified is False
 
 
 def test_admin_panel_features(client, app):

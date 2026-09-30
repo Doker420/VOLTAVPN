@@ -195,6 +195,41 @@ body {
     box-shadow: 0 0 20px rgba(99, 102, 241, 0.25);
 }
 
+/* Form Inputs & Auth Modal High-Contrast Styling */
+.auth-input, .form-control-dark {
+    background: #0f172a !important;
+    border: 1.5px solid rgba(148, 163, 184, 0.35) !important;
+    color: #ffffff !important;
+    font-size: 0.95rem !important;
+    font-weight: 500 !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+.auth-input::placeholder, .form-control-dark::placeholder {
+    color: #94a3b8 !important;
+    opacity: 0.85 !important;
+}
+
+.auth-input:focus, .form-control-dark:focus {
+    background: #1e293b !important;
+    border-color: #38bdf8 !important;
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.25) !important;
+    color: #ffffff !important;
+    outline: none !important;
+}
+
+.auth-label {
+    color: #e2e8f0 !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    margin-bottom: 6px !important;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
 /* Copy Field */
 .copy-field {
     background: rgba(10, 11, 16, 0.8);

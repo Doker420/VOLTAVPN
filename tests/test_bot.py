@@ -121,5 +121,37 @@ def test_bot_instructions_and_faq_commands(app):
         assert 'No-Logs' in update.message.replied_text
         assert 'Пользовательское соглашение' in update.message.replied_text
 
+        # 4. Admin reply button mode
+        class DummyCallbackQuery:
+            def __init__(self, data):
+                self.data = data
+                self.message = DummyMessage()
+            async def answer(self, text=None, show_alert=False):
+                pass
+
+        class DummyContext:
+            def __init__(self):
+                self.user_data = {}
+
+        bot_module.ADMIN_IDS = [99887766]
+        admin_update = DummyUpdate(99887766)
+        admin_update.callback_query = DummyCallbackQuery('rep_sess_custom_99')
+        ctx = DummyContext()
+
+        await bot_module.admin_reply_btn_callback(admin_update, ctx)
+        assert ctx.user_data.get('pending_reply_session') == 'sess_custom_99'
+        assert 'Режим быстрого ответа' in admin_update.callback_query.message.replied_text
+
+        # 5. Admin sends the reply text
+        msg_update = DummyUpdate(99887766)
+        msg_update.message.text = 'Привет, вот ответ из бота!'
+        await bot_module.handle_text_buttons(msg_update, ctx)
+
+        with app.app_context():
+            replied = SupportMessage.query.filter_by(session_id='sess_custom_99').first()
+            assert replied is not None
+            assert replied.text == 'Привет, вот ответ из бота!'
+            assert replied.sender_type == 'admin'
+
     asyncio.run(_run())
 
