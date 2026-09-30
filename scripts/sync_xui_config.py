@@ -181,6 +181,12 @@ def main():
         })
         try:
             inbounds = get_inbounds(session, xui_url)
+        except requests.exceptions.SSLError as exc:
+            if not xui_url.lower().startswith("https://") or "wrong_version_number" not in str(exc).lower():
+                raise
+            xui_url = "http://" + xui_url.split("://", 1)[1]
+            print("Предупреждение: API панели отвечает обычным HTTP, переключаюсь на http://", file=sys.stderr)
+            inbounds = get_inbounds(session, xui_url)
         except requests.HTTPError as exc:
             raise RuntimeError(
                 f"3X-UI отклонила API-токен ({exc}). Проверьте токен и URL панели."
