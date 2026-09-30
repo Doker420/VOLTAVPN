@@ -892,6 +892,19 @@
                             </div>
                         </div>
 
+                        <!-- Free Config Collector Settings -->
+                        <div class="p-4 rounded-4 bg-dark border border-glass mb-4">
+                            <h6 class="fw-bold text-white mb-2"><i class="bi bi-cloud-download text-volt me-2"></i>Автосбор бесплатных конфигураций</h6>
+                            <p class="small text-white-50 mb-3">
+                                При отключении сайт перестанет загружать конфигурации из открытых источников. Ваши конфигурации, добавленные вручную через раздел «Серверы», останутся в подписках.
+                            </p>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" name="free_config_collection_enabled" id="freeConfigCollectionEnabled" {% if free_config_collection_enabled %}checked{% endif %}>
+                                <label class="form-check-label text-white" for="freeConfigCollectionEnabled">Включить сбор бесплатных конфигураций</label>
+                            </div>
+                            <div class="small text-white-50 mt-2">После отключения уже загруженные бесплатные конфигурации автоматически не удаляются.</div>
+                        </div>
+
                         <!-- Support Contacts Settings -->
                         <div class="p-4 rounded-4 bg-dark border border-glass mb-4">
                             <h6 class="fw-bold text-white mb-2"><i class="bi bi-headset text-volt me-2"></i>Контакты службы поддержки</h6>

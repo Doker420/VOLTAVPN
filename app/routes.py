@@ -1254,6 +1254,7 @@ def register_routes(flask_app):
         required_channel_url = AppSetting.get('REQUIRED_CHANNEL_URL') or current_app.config.get('REQUIRED_CHANNEL_URL', '')
         affiliate_commission_percent = AppSetting.get('AFFILIATE_COMMISSION_PERCENT') or current_app.config.get('AFFILIATE_COMMISSION_PERCENT', '75')
         min_withdrawal_amount = AppSetting.get('MIN_WITHDRAWAL_AMOUNT') or current_app.config.get('MIN_WITHDRAWAL_AMOUNT', '100')
+        free_config_collection_enabled = (AppSetting.get('FREE_CONFIG_COLLECTION_ENABLED', 'true') or 'true').strip().lower() in {'1', 'true', 'yes', 'on'}
 
         stats = {
             'total_users': total_users,
@@ -1289,6 +1290,7 @@ def register_routes(flask_app):
             support_contacts=support_contacts,
             required_channel=required_channel,
             required_channel_url=required_channel_url,
+            free_config_collection_enabled=free_config_collection_enabled,
             search_query=search_query,
         )
 
@@ -1563,6 +1565,7 @@ def register_routes(flask_app):
         required_channel_url = (request.form.get('required_channel_url') or '').strip()
         affiliate_commission_percent = (request.form.get('affiliate_commission_percent') or '75').strip()
         min_withdrawal_amount = (request.form.get('min_withdrawal_amount') or '100').strip()
+        free_config_collection_enabled = 'true' if request.form.get('free_config_collection_enabled') == 'on' else 'false'
 
         if webhook_url:
             AppSetting.set('WEBHOOK_URL', webhook_url, 'Публичный домен сервиса (https://...)')
@@ -1575,6 +1578,7 @@ def register_routes(flask_app):
         AppSetting.set('REQUIRED_CHANNEL_URL', required_channel_url, 'Ссылка на обязательный канал')
         AppSetting.set('AFFILIATE_COMMISSION_PERCENT', affiliate_commission_percent, 'Процент партнёрского вознаграждения (%)')
         AppSetting.set('MIN_WITHDRAWAL_AMOUNT', min_withdrawal_amount, 'Минимальная сумма для вывода (₽)')
+        AppSetting.set('FREE_CONFIG_COLLECTION_ENABLED', free_config_collection_enabled, 'Сбор бесплатных конфигураций из открытых источников')
 
         flash('Настройки успешно сохранены!', 'success')
         return redirect(url_for('admin_dashboard') + '#settings')

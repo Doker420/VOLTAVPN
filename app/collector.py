@@ -772,11 +772,17 @@ def fast_recheck_and_prune():
 def collect_configs():
     """
     Collects candidates from remote sources, tests connectivity,
-    and updates the database.
+    and updates the database. The free-source collector can be disabled
+    from the admin panel while manually added configs remain available.
     """
     from flask import current_app
+    from app.models import AppSetting
 
     with current_app.app_context():
+        enabled = (AppSetting.get('FREE_CONFIG_COLLECTION_ENABLED', 'true') or 'true').strip().lower()
+        if enabled not in {'1', 'true', 'yes', 'on'}:
+            print('[Collector] Free config collection is disabled in admin settings')
+            return 0
         print(f"[Collector] Starting collection at {datetime.utcnow().isoformat()}...")
 
         candidates = {}
