@@ -677,6 +677,9 @@ def collect_configs():
 
             db.session.commit()
 
+        # Re-check all active database configs to prune any dead servers
+        probe_all_configs()
+
         current_working = Config.query.filter_by(is_working=True).count()
         print(f"[Collector] Finished: {new_count} new, {updated_count} updated, {current_working} working total.")
         save_configs_to_repo()

@@ -893,6 +893,9 @@ def register_routes(flask_app):
                 'Update-Interval': '1',
                 'Profile-Title': title,
                 'Profile-Web-Page-Url': f"{get_base_url()}/dashboard",
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0',
             }
             if sub_obj is not None:
                 expire_ts = int(sub_obj.effective_end_date().timestamp() if sub_obj.is_in_grace_period() else sub_obj.end_date.timestamp())
