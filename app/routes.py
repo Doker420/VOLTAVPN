@@ -195,7 +195,7 @@ def generate_qr_code(data, token):
 
 def build_deep_links(sub_url):
     enc = quote(sub_url, safe='')
-    name = quote('VOLTA VPN', safe='')
+    name = quote('VoltaVPN', safe='')
     return {
         'v2rayng': f"v2rayng://install-sub?url={enc}&name={name}",
         'hiddify': f"hiddify://import/{enc}#{name}",
@@ -505,10 +505,12 @@ def register_routes(flask_app):
         Checks active status & returns verified Base64 configs.
         Sends Profile headers so client apps automatically update periodically.
         """
-        def _sub_headers(sub_obj, title):
+        def _sub_headers(sub_obj, title='VoltaVPN'):
             headers = {
-                'Profile-Update-Interval': '1',  # check for updates every 1 hour
+                'Profile-Update-Interval': '1',
+                'Update-Interval': '1',
                 'Profile-Title': title,
+                'Profile-Web-Page-Url': f"{get_base_url()}/dashboard",
                 'Content-Disposition': f'inline; filename="{title}"',
             }
             if sub_obj is not None:
@@ -522,17 +524,17 @@ def register_routes(flask_app):
         if sub_token == 'public':
             feed = generate_subscription_feed(is_base64=True, limit=100)
             return Response(feed, mimetype='text/plain; charset=utf-8',
-                            headers=_sub_headers(None, 'VOLTA VPN'))
+                            headers=_sub_headers(None, 'VoltaVPN'))
 
         sub = Subscription.query.filter_by(sub_token=sub_token).first()
         if not sub:
             return Response("Invalid Subscription Token", status=404, mimetype='text/plain')
 
         if not sub.is_active or sub.is_expired():
-            blocked_msg = "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:443?encryption=none&security=none#%E2%9A%A0%EF%B8%8F%20VOLTA%20VPN%20%7C%20%D0%9F%D0%BE%D0%B4%D0%BF%D0%B8%D1%81%D0%BA%D0%B0%20%D0%B8%D1%81%D1%82%D0%B5%D0%BA%D0%BB%D0%B0!%20%D0%9F%D1%80%D0%BE%D0%B4%D0%BB%D0%B8%D1%82%D0%B5%20%D0%BD%D0%B0%20VOLTA"
+            blocked_msg = "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:443?encryption=none&security=none#%E2%9A%A0%EF%B8%8F%20VoltaVPN%20%7C%20%D0%9F%D0%BE%D0%B4%D0%BF%D0%B8%D1%81%D0%BA%D0%B0%20%D0%B8%D1%81%D1%82%D0%B5%D0%BA%D0%BB%D0%B0!%20%D0%9F%D1%80%D0%BE%D0%B4%D0%BB%D0%B8%D1%82%D0%B5%20%D0%BD%D0%B0%20VoltaVPN"
             b64_blocked = base64.b64encode(blocked_msg.encode('utf-8')).decode('utf-8')
             headers = {
-                'Profile-Title': 'VOLTA VPN (истекла)',
+                'Profile-Title': 'VoltaVPN (истекла)',
                 'Subscription-Userinfo': f"upload=0; download=0; total=0; expire={int(sub.end_date.timestamp())}",
             }
             return Response(b64_blocked, mimetype='text/plain; charset=utf-8', headers=headers)
@@ -540,7 +542,7 @@ def register_routes(flask_app):
         # Return dynamically generated feed of verified working configs
         feed = generate_subscription_feed(is_base64=True, limit=150)
         return Response(feed, mimetype='text/plain; charset=utf-8',
-                        headers=_sub_headers(sub, 'VOLTA VPN'))
+                        headers=_sub_headers(sub, 'VoltaVPN'))
 
     @flask_app.route('/download')
     @flask_app.route('/download/zip')

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unit tests for VOLTA config collector: protocol detection, host/port parsing,
 and branded auto-generation of subscription node names.
 Run: python -m pytest tests/ -v
@@ -70,7 +70,7 @@ def test_rename_node_vless_sets_fragment():
     # base URI preserved
     assert renamed.startswith("vless://uuid@example.com:443?type=tcp#")
     # brand present in the (url-encoded) fragment
-    assert "VOLTA" in renamed
+    assert "VoltaVPN" in renamed
     assert "VLESS" in renamed
     # ping annotation encoded
     assert "82ms" in renamed
@@ -82,7 +82,7 @@ def test_rename_node_vmess_sets_ps_field():
     renamed = rename_node("vmess://" + b64, 'vmess', 3, latency=50, code='NL')
     assert renamed.startswith("vmess://")
     decoded = json.loads(base64.b64decode(renamed[8:] + "===").decode('utf-8', errors='ignore'))
-    assert "VOLTA" in decoded['ps']
+    assert "VoltaVPN" in decoded['ps']
     # country name should appear in the title
     assert "Нидерланды" in decoded['ps']
     # host preserved

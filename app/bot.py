@@ -290,7 +290,7 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     from urllib.parse import quote
     enc = quote(link, safe='')
-    name = quote('VOLTA VPN', safe='')
+    name = quote('VoltaVPN', safe='')
 
     keyboard = [
         [InlineKeyboardButton("📱 Karing (iOS / Android)", url=f"karing://install-config?url={enc}&name={name}")],

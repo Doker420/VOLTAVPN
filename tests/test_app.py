@@ -133,13 +133,13 @@ def test_dynamic_subscription_feed(client, app):
 
     # Decode base64 feed
     decoded = base64.b64decode(resp.data).decode('utf-8')
-    assert 'VOLTA' in decoded
+    assert 'VoltaVPN' in decoded
     initial_count = len(decoded.strip().splitlines())
     assert initial_count > 0
 
     # Add new custom config
     with app.app_context():
-        new_uri = "vless://abcdef12-3456-7890-abcd-ef1234567890@jp.volta-node.net:443?type=tcp&security=reality#VOLTA-JP-New"
+        new_uri = "vless://abcdef12-3456-7890-abcd-ef1234567890@jp.volta-node.net:443?type=tcp&security=reality#VoltaVPN-JP-New"
         add_custom_config(new_uri, country_code='JP')
 
     # Fetch feed again — it dynamically includes the new node!

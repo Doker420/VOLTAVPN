@@ -20,7 +20,7 @@ GITHUB_SOURCES = [
 ]
 
 # Brand prefix used when auto-generating subscription node names
-BRAND = "VOLTA"
+BRAND = "VoltaVPN"
 
 PROTOCOL_PATTERNS = {
     'vless': re.compile(r'^vless://', re.IGNORECASE),
@@ -65,62 +65,62 @@ COUNTRY_NAMES = {
 DEFAULT_SEED_CONFIGS = [
     {
         'protocol': 'vless',
-        'content': 'vless://7a8e9f12-3b4c-5d6e-7f8a-9b0c1d2e3f4a@de.volta-node.net:443?type=tcp&security=reality&pbk=Z1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c&fp=chrome&sni=gateway.icloud.com&sid=6ba7b810&spx=%2F#VOLTA-DE-01',
+        'content': 'vless://7a8e9f12-3b4c-5d6e-7f8a-9b0c1d2e3f4a@de.volta-node.net:443?type=tcp&security=reality&pbk=Z1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c&fp=chrome&sni=gateway.icloud.com&sid=6ba7b810&spx=%2F#VoltaVPN-DE-01',
         'host': 'de.volta-node.net', 'port': 443, 'latency_ms': 38.5, 'country_code': 'DE', 'country': 'Германия', 'is_working': True,
     },
     {
         'protocol': 'vless',
-        'content': 'vless://8b9f0a23-4c5d-6e7f-8a9b-0c1d2e3f4a5b@nl.volta-node.net:443?type=tcp&security=reality&pbk=X9y8z7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e&fp=chrome&sni=www.microsoft.com&sid=7ca8c921&spx=%2F#VOLTA-NL-01',
+        'content': 'vless://8b9f0a23-4c5d-6e7f-8a9b-0c1d2e3f4a5b@nl.volta-node.net:443?type=tcp&security=reality&pbk=X9y8z7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e&fp=chrome&sni=www.microsoft.com&sid=7ca8c921&spx=%2F#VoltaVPN-NL-01',
         'host': 'nl.volta-node.net', 'port': 443, 'latency_ms': 42.0, 'country_code': 'NL', 'country': 'Нидерланды', 'is_working': True,
     },
     {
         'protocol': 'vless',
-        'content': 'vless://9c0a1b34-5d6e-7f8a-9b0c-1d2e3f4a5b6c@fi.volta-node.net:443?type=tcp&security=reality&pbk=M1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6c7d8e9f0a1b&fp=firefox&sni=speed.cloudflare.com&sid=8db9da32&spx=%2F#VOLTA-FI-01',
+        'content': 'vless://9c0a1b34-5d6e-7f8a-9b0c-1d2e3f4a5b6c@fi.volta-node.net:443?type=tcp&security=reality&pbk=M1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6c7d8e9f0a1b&fp=firefox&sni=speed.cloudflare.com&sid=8db9da32&spx=%2F#VoltaVPN-FI-01',
         'host': 'fi.volta-node.net', 'port': 443, 'latency_ms': 29.4, 'country_code': 'FI', 'country': 'Финляндия', 'is_working': True,
     },
     {
         'protocol': 'vless',
-        'content': 'vless://1d2e3f4a-5b6c-7d8e-9f0a-1b2c3d4e5f6a@se.volta-node.net:443?type=tcp&security=reality&pbk=K9j8i7h6g5f4e3d2c1b0a9z8y7x6w5v4u3t2s1r0q9p&fp=chrome&sni=aws.amazon.com&sid=9ec0eb43&spx=%2F#VOLTA-SE-01',
+        'content': 'vless://1d2e3f4a-5b6c-7d8e-9f0a-1b2c3d4e5f6a@se.volta-node.net:443?type=tcp&security=reality&pbk=K9j8i7h6g5f4e3d2c1b0a9z8y7x6w5v4u3t2s1r0q9p&fp=chrome&sni=aws.amazon.com&sid=9ec0eb43&spx=%2F#VoltaVPN-SE-01',
         'host': 'se.volta-node.net', 'port': 443, 'latency_ms': 34.2, 'country_code': 'SE', 'country': 'Швеция', 'is_working': True,
     },
     {
         'protocol': 'trojan',
-        'content': 'trojan://voltaSecurePass2026@de2.volta-node.net:443?security=tls&sni=telemetry.apple.com#VOLTA-DE-Trojan',
+        'content': 'trojan://voltaSecurePass2026@de2.volta-node.net:443?security=tls&sni=telemetry.apple.com#VoltaVPN-DE-Trojan',
         'host': 'de2.volta-node.net', 'port': 443, 'latency_ms': 45.1, 'country_code': 'DE', 'country': 'Германия', 'is_working': True,
     },
     {
         'protocol': 'trojan',
-        'content': 'trojan://voltaSecurePass2026@nl2.volta-node.net:443?security=tls&sni=cdn.discordapp.com#VOLTA-NL-Trojan',
+        'content': 'trojan://voltaSecurePass2026@nl2.volta-node.net:443?security=tls&sni=cdn.discordapp.com#VoltaVPN-NL-Trojan',
         'host': 'nl2.volta-node.net', 'port': 443, 'latency_ms': 41.8, 'country_code': 'NL', 'country': 'Нидерланды', 'is_working': True,
     },
     {
         'protocol': 'ss',
-        'content': 'ss://2022-blake3-aes-128-gcm:dm9sdGFfc2VjdXJlX3Bhc3N3b3JkXzIwMjY=@pl.volta-node.net:8388#VOLTA-PL-SS',
+        'content': 'ss://2022-blake3-aes-128-gcm:dm9sdGFfc2VjdXJlX3Bhc3N3b3JkXzIwMjY=@pl.volta-node.net:8388#VoltaVPN-PL-SS',
         'host': 'pl.volta-node.net', 'port': 8388, 'latency_ms': 48.0, 'country_code': 'PL', 'country': 'Польша', 'is_working': True,
     },
     {
         'protocol': 'ss',
-        'content': 'ss://2022-blake3-aes-128-gcm:dm9sdGFfc2VjdXJlX3Bhc3N3b3JkXzIwMjY=@fr.volta-node.net:8388#VOLTA-FR-SS',
+        'content': 'ss://2022-blake3-aes-128-gcm:dm9sdGFfc2VjdXJlX3Bhc3N3b3JkXzIwMjY=@fr.volta-node.net:8388#VoltaVPN-FR-SS',
         'host': 'fr.volta-node.net', 'port': 8388, 'latency_ms': 52.3, 'country_code': 'FR', 'country': 'Франция', 'is_working': True,
     },
     {
         'protocol': 'hysteria2',
-        'content': 'hysteria2://voltaFastHy2Pass@us.volta-node.net:443?sni=www.google.com&insecure=0#VOLTA-US-Hy2',
+        'content': 'hysteria2://voltaFastHy2Pass@us.volta-node.net:443?sni=www.google.com&insecure=0#VoltaVPN-US-Hy2',
         'host': 'us.volta-node.net', 'port': 443, 'latency_ms': 95.0, 'country_code': 'US', 'country': 'США', 'is_working': True,
     },
     {
         'protocol': 'hysteria2',
-        'content': 'hysteria2://voltaFastHy2Pass@gb.volta-node.net:443?sni=www.bing.com&insecure=0#VOLTA-GB-Hy2',
+        'content': 'hysteria2://voltaFastHy2Pass@gb.volta-node.net:443?sni=www.bing.com&insecure=0#VoltaVPN-GB-Hy2',
         'host': 'gb.volta-node.net', 'port': 443, 'latency_ms': 49.6, 'country_code': 'GB', 'country': 'Великобритания', 'is_working': True,
     },
     {
         'protocol': 'vless',
-        'content': 'vless://2e3f4a5b-6c7d-8e9f-0a1b-2c3d4e5f6a7b@kz.volta-node.net:443?type=tcp&security=reality&pbk=P0o9i8u7y6t5r4e3w2q1a0s9d8f7g6h5j4k3l2z1x0c&fp=chrome&sni=yandex.kz&sid=10fd1c54&spx=%2F#VOLTA-KZ-01',
+        'content': 'vless://2e3f4a5b-6c7d-8e9f-0a1b-2c3d4e5f6a7b@kz.volta-node.net:443?type=tcp&security=reality&pbk=P0o9i8u7y6t5r4e3w2q1a0s9d8f7g6h5j4k3l2z1x0c&fp=chrome&sni=yandex.kz&sid=10fd1c54&spx=%2F#VoltaVPN-KZ-01',
         'host': 'kz.volta-node.net', 'port': 443, 'latency_ms': 55.0, 'country_code': 'KZ', 'country': 'Казахстан', 'is_working': True,
     },
     {
         'protocol': 'vless',
-        'content': 'vless://3f4a5b6c-7d8e-9f0a-1b2c-3d4e5f6a7b8c@tr.volta-node.net:443?type=tcp&security=reality&pbk=L1k2j3h4g5f6d7s8a9q0w1e2r3t4y5u6i7o8p9z0x1c&fp=safari&sni=www.turkcell.com.tr&sid=21ae2d65&spx=%2F#VOLTA-TR-01',
+        'content': 'vless://3f4a5b6c-7d8e-9f0a-1b2c-3d4e5f6a7b8c@tr.volta-node.net:443?type=tcp&security=reality&pbk=L1k2j3h4g5f6d7s8a9q0w1e2r3t4y5u6i7o8p9z0x1c&fp=safari&sni=www.turkcell.com.tr&sid=21ae2d65&spx=%2F#VoltaVPN-TR-01',
         'host': 'tr.volta-node.net', 'port': 443, 'latency_ms': 62.4, 'country_code': 'TR', 'country': 'Турция', 'is_working': True,
     },
 ]
