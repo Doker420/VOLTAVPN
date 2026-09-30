@@ -230,8 +230,13 @@ def get_base_url():
 
     try:
         db_url = AppSetting.get('WEBHOOK_URL')
+        # A local value can accidentally be saved from development/admin setup.
+        # Never put it into a QR code or subscription link: that URL is not
+        # reachable from the user's phone and makes website imports fail.
         if db_url and str(db_url).strip():
-            return str(db_url).strip().rstrip('/')
+            candidate = str(db_url).strip().rstrip('/')
+            if not any(localhost in candidate.lower() for localhost in ('localhost', '127.0.0.1', '0.0.0.0')):
+                return candidate
     except Exception:
         pass
 
@@ -860,7 +865,10 @@ def register_routes(flask_app):
         using the current request's domain/host, guaranteeing the QR is never stale
         or pointing to localhost.
         """
-        sub_url = f"{get_base_url()}/sub/{sub_token}"
+        # Force the machine-readable response even when a phone's QR scanner
+        # opens the link in a normal browser first. Without this parameter the
+        # browser gets the HTML portal instead of the subscription feed.
+        sub_url = f"{get_base_url()}/sub/{sub_token}?format=base64"
         qr = qrcode.QRCode(version=1, box_size=10, border=3)
         qr.add_data(sub_url)
         qr.make(fit=True)
