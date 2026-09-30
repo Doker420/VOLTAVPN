@@ -11,7 +11,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKe
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 from app.models import User, Subscription, Config, Payment, SupportMessage, AppSetting, Referral, TrialClaim, AffiliateReward, WithdrawalRequest, db
-from app.payment import create_platega_payment, create_cryptobot_payment, create_yoomoney_payment, check_payment_status
+from app.payment import create_platega_payment, create_cryptobot_payment, create_xrocket_payment, create_yoomoney_payment, check_payment_status, payment_method_enabled
 from app.collector import get_working_configs
 
 load_dotenv()
@@ -904,12 +904,17 @@ async def plan_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Неверный тариф.")
         return
 
-    keyboard = [
-        [InlineKeyboardButton("💳 Банковские карты / СБП / ЮMoney (YooMoney)", callback_data=f"pay_yoomoney_{plan_id}")],
-        [InlineKeyboardButton("💳 Platega.io (Карты / СБП)", callback_data=f"pay_platega_{plan_id}")],
-        [InlineKeyboardButton("💎 CryptoBot (@CryptoBot)", callback_data=f"pay_cryptobot_{plan_id}")],
-        [InlineKeyboardButton("⬅️ Назад к тарифам", callback_data="buy_menu")]
-    ]
+    with flask_app.app_context():
+        keyboard = []
+        if payment_method_enabled('yoomoney'):
+            keyboard.append([InlineKeyboardButton("💳 Банковские карты / СБП / ЮMoney (YooMoney)", callback_data=f"pay_yoomoney_{plan_id}")])
+        if payment_method_enabled('platega'):
+            keyboard.append([InlineKeyboardButton("💳 Platega.io (Карты / СБП)", callback_data=f"pay_platega_{plan_id}")])
+        if payment_method_enabled('cryptobot'):
+            keyboard.append([InlineKeyboardButton("💎 CryptoBot (@CryptoBot)", callback_data=f"pay_cryptobot_{plan_id}")])
+        if payment_method_enabled('xrocket'):
+            keyboard.append([InlineKeyboardButton("🚀 xRocket Pay (USDT / TON)", callback_data=f"pay_xrocket_{plan_id}")])
+        keyboard.append([InlineKeyboardButton("⬅️ Назад к тарифам", callback_data="buy_menu")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(
         f"Тариф: <b>{esc(plan['name'])}</b> ({plan['price']} ₽)\n\nВыберите удобный способ оплаты:",
@@ -938,12 +943,18 @@ async def payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ext_id = None
     try:
         with flask_app.app_context():
+            if not payment_method_enabled(method):
+                await query.edit_message_text("⚠️ Этот способ оплаты отключён администратором.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data=f"plan_{plan_id}")]]))
+                return
             if method == 'yoomoney':
                 payment_url, ext_id = create_yoomoney_payment(db_user, plan, sub.id if sub else 0)
                 method_name = "YooMoney (Карты / СБП)"
             elif method == 'platega':
                 payment_url, ext_id = create_platega_payment(db_user, plan, sub.id if sub else 0)
                 method_name = "Platega.io"
+            elif method == 'xrocket':
+                payment_url, ext_id = create_xrocket_payment(db_user, plan, sub.id if sub else 0)
+                method_name = "xRocket Pay"
             else:
                 payment_url, ext_id = create_cryptobot_payment(db_user, plan, sub.id if sub else 0)
                 method_name = "CryptoBot"
