@@ -41,7 +41,30 @@ def app():
 
     with app.app_context():
         db.create_all()
-        seed_default_configs()
+        # Seed test working nodes from open source pool for test runner
+        db.session.add(Config(
+            protocol='vless',
+            content='vless://11111111-2222-3333-4444-555555555555@104.21.5.10:443?type=tcp&security=reality&sni=test.com#Open-DE',
+            host='104.21.5.10',
+            port=443,
+            latency_ms=35.0,
+            country='Германия',
+            country_code='DE',
+            is_working=True,
+            source_url='open_source_community',
+        ))
+        db.session.add(Config(
+            protocol='trojan',
+            content='trojan://openpass@172.67.180.20:443?security=tls&sni=test.com#Open-NL',
+            host='172.67.180.20',
+            port=443,
+            latency_ms=42.0,
+            country='Нидерланды',
+            country_code='NL',
+            is_working=True,
+            source_url='open_source_community',
+        ))
+        db.session.commit()
         yield app
         db.session.remove()
         db.drop_all()
@@ -148,13 +171,13 @@ def test_dynamic_subscription_feed(client, app):
 
     # Add new custom config (explicitly marked working in unit test environment)
     with app.app_context():
-        new_uri = "vless://abcdef12-3456-7890-abcd-ef1234567890@jp.volta-node.net:443?type=tcp&security=reality#VoltaVPN-JP-New"
+        new_uri = "vless://abcdef12-3456-7890-abcd-ef1234567890@jp.example.com:443?type=tcp&security=reality#VoltaVPN-JP-New"
         add_custom_config(new_uri, country_code='JP', is_working=True)
 
     # Fetch feed again — it dynamically includes the new node!
     resp2 = client.get(f'/sub/{token}', headers={'User-Agent': 'Karing/1.0'})
     decoded2 = base64.b64decode(resp2.data).decode('utf-8')
-    assert 'Япония' in decoded2 or 'JP' in decoded2 or 'jp.volta-node.net' in decoded2
+    assert 'Япония' in decoded2 or 'JP' in decoded2 or 'jp.example.com' in decoded2
 
 
 def test_tg_login_and_update_profile(client, app):
@@ -401,8 +424,8 @@ def test_admin_panel_features(client, app):
 
     # Admin adds batch configs
     batch_text = """
-vless://11111111-2222-3333-4444-555555555555@de3.volta-node.net:443?type=tcp&security=reality#VOLTA-DE-Batch1
-trojan://pass1234@nl3.volta-node.net:443?security=tls#VOLTA-NL-Batch2
+vless://11111111-2222-3333-4444-555555555555@de3.example.com:443?type=tcp&security=reality#VOLTA-DE-Batch1
+trojan://pass1234@nl3.example.com:443?security=tls#VOLTA-NL-Batch2
 """
     resp_batch = client.post('/admin/configs/add', data={
         'batch_text': batch_text,
@@ -410,8 +433,8 @@ trojan://pass1234@nl3.volta-node.net:443?security=tls#VOLTA-NL-Batch2
     assert resp_batch.status_code == 200
 
     with app.app_context():
-        assert Config.query.filter_by(host='de3.volta-node.net').first() is not None
-        assert Config.query.filter_by(host='nl3.volta-node.net').first() is not None
+        assert Config.query.filter_by(host='de3.example.com').first() is not None
+        assert Config.query.filter_by(host='nl3.example.com').first() is not None
 
     # Admin saves settings (Support, YooMoney, Required Channel)
     resp_settings = client.post('/admin/settings/save', data={

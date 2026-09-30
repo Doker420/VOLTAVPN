@@ -17,6 +17,10 @@ GITHUB_SOURCES = [
     "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_VLESS_RUS_mobile.txt",
     "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/sub/normal/vless",
     "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/sub/normal/shadowsocks",
+    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Splitted-By-Protocol/vless.txt",
+    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Splitted-By-Protocol/ss.txt",
+    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Splitted-By-Protocol/trojan.txt",
+    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Splitted-By-Protocol/hysteria2.txt",
 ]
 
 # Brand prefix used when auto-generating subscription node names
@@ -63,69 +67,7 @@ COUNTRY_NAMES = {
     'IL': ('Израиль', '🇮🇱'), 'AU': ('Австралия', '🇦🇺'), 'BR': ('Бразилия', '🇧🇷'),
 }
 
-# Seed fallback configurations to guarantee working nodes from day 1
-DEFAULT_SEED_CONFIGS = [
-    {
-        'protocol': 'vless',
-        'content': 'vless://7a8e9f12-3b4c-5d6e-7f8a-9b0c1d2e3f4a@de.volta-node.net:443?type=tcp&security=reality&pbk=Z1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c&fp=chrome&sni=gateway.icloud.com&sid=6ba7b810&spx=%2F#VoltaVPN-DE-01',
-        'host': 'de.volta-node.net', 'port': 443, 'latency_ms': 38.5, 'country_code': 'DE', 'country': 'Германия', 'is_working': True,
-    },
-    {
-        'protocol': 'vless',
-        'content': 'vless://8b9f0a23-4c5d-6e7f-8a9b-0c1d2e3f4a5b@nl.volta-node.net:443?type=tcp&security=reality&pbk=X9y8z7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e&fp=chrome&sni=www.microsoft.com&sid=7ca8c921&spx=%2F#VoltaVPN-NL-01',
-        'host': 'nl.volta-node.net', 'port': 443, 'latency_ms': 42.0, 'country_code': 'NL', 'country': 'Нидерланды', 'is_working': True,
-    },
-    {
-        'protocol': 'vless',
-        'content': 'vless://9c0a1b34-5d6e-7f8a-9b0c-1d2e3f4a5b6c@fi.volta-node.net:443?type=tcp&security=reality&pbk=M1n2o3p4q5r6s7t8u9v0w1x2y3z4a5b6c7d8e9f0a1b&fp=firefox&sni=speed.cloudflare.com&sid=8db9da32&spx=%2F#VoltaVPN-FI-01',
-        'host': 'fi.volta-node.net', 'port': 443, 'latency_ms': 29.4, 'country_code': 'FI', 'country': 'Финляндия', 'is_working': True,
-    },
-    {
-        'protocol': 'vless',
-        'content': 'vless://1d2e3f4a-5b6c-7d8e-9f0a-1b2c3d4e5f6a@se.volta-node.net:443?type=tcp&security=reality&pbk=K9j8i7h6g5f4e3d2c1b0a9z8y7x6w5v4u3t2s1r0q9p&fp=chrome&sni=aws.amazon.com&sid=9ec0eb43&spx=%2F#VoltaVPN-SE-01',
-        'host': 'se.volta-node.net', 'port': 443, 'latency_ms': 34.2, 'country_code': 'SE', 'country': 'Швеция', 'is_working': True,
-    },
-    {
-        'protocol': 'trojan',
-        'content': 'trojan://voltaSecurePass2026@de2.volta-node.net:443?security=tls&sni=telemetry.apple.com#VoltaVPN-DE-Trojan',
-        'host': 'de2.volta-node.net', 'port': 443, 'latency_ms': 45.1, 'country_code': 'DE', 'country': 'Германия', 'is_working': True,
-    },
-    {
-        'protocol': 'trojan',
-        'content': 'trojan://voltaSecurePass2026@nl2.volta-node.net:443?security=tls&sni=cdn.discordapp.com#VoltaVPN-NL-Trojan',
-        'host': 'nl2.volta-node.net', 'port': 443, 'latency_ms': 41.8, 'country_code': 'NL', 'country': 'Нидерланды', 'is_working': True,
-    },
-    {
-        'protocol': 'ss',
-        'content': 'ss://2022-blake3-aes-128-gcm:dm9sdGFfc2VjdXJlX3Bhc3N3b3JkXzIwMjY=@pl.volta-node.net:8388#VoltaVPN-PL-SS',
-        'host': 'pl.volta-node.net', 'port': 8388, 'latency_ms': 48.0, 'country_code': 'PL', 'country': 'Польша', 'is_working': True,
-    },
-    {
-        'protocol': 'ss',
-        'content': 'ss://2022-blake3-aes-128-gcm:dm9sdGFfc2VjdXJlX3Bhc3N3b3JkXzIwMjY=@fr.volta-node.net:8388#VoltaVPN-FR-SS',
-        'host': 'fr.volta-node.net', 'port': 8388, 'latency_ms': 52.3, 'country_code': 'FR', 'country': 'Франция', 'is_working': True,
-    },
-    {
-        'protocol': 'hysteria2',
-        'content': 'hysteria2://voltaFastHy2Pass@us.volta-node.net:443?sni=www.google.com&insecure=0#VoltaVPN-US-Hy2',
-        'host': 'us.volta-node.net', 'port': 443, 'latency_ms': 95.0, 'country_code': 'US', 'country': 'США', 'is_working': True,
-    },
-    {
-        'protocol': 'hysteria2',
-        'content': 'hysteria2://voltaFastHy2Pass@gb.volta-node.net:443?sni=www.bing.com&insecure=0#VoltaVPN-GB-Hy2',
-        'host': 'gb.volta-node.net', 'port': 443, 'latency_ms': 49.6, 'country_code': 'GB', 'country': 'Великобритания', 'is_working': True,
-    },
-    {
-        'protocol': 'vless',
-        'content': 'vless://2e3f4a5b-6c7d-8e9f-0a1b-2c3d4e5f6a7b@kz.volta-node.net:443?type=tcp&security=reality&pbk=P0o9i8u7y6t5r4e3w2q1a0s9d8f7g6h5j4k3l2z1x0c&fp=chrome&sni=yandex.kz&sid=10fd1c54&spx=%2F#VoltaVPN-KZ-01',
-        'host': 'kz.volta-node.net', 'port': 443, 'latency_ms': 55.0, 'country_code': 'KZ', 'country': 'Казахстан', 'is_working': True,
-    },
-    {
-        'protocol': 'vless',
-        'content': 'vless://3f4a5b6c-7d8e-9f0a-1b2c-3d4e5f6a7b8c@tr.volta-node.net:443?type=tcp&security=reality&pbk=L1k2j3h4g5f6d7s8a9q0w1e2r3t4y5u6i7o8p9z0x1c&fp=safari&sni=www.turkcell.com.tr&sid=21ae2d65&spx=%2F#VoltaVPN-TR-01',
-        'host': 'tr.volta-node.net', 'port': 443, 'latency_ms': 62.4, 'country_code': 'TR', 'country': 'Турция', 'is_working': True,
-    },
-]
+DEFAULT_SEED_CONFIGS = []
 
 
 def country_flag(code):
@@ -320,7 +262,7 @@ def rename_node(content, protocol, index, latency=None, code=None):
 def fetch_configs_from_source(url):
     try:
         headers = {'User-Agent': 'VOLTA-Collector/1.0'}
-        response = requests.get(url, headers=headers, timeout=15)
+        response = requests.get(url, headers=headers, timeout=3)
         response.raise_for_status()
         return response.text.splitlines()
     except Exception as e:
@@ -349,39 +291,9 @@ def _probe(entry):
 
 def seed_default_configs():
     """
-    Seeds the database with standard high-performance VPN configs
-    so user subscription feeds are active and fully populated.
+    Seeds/updates the database with verified configs from open sources.
     """
-    from flask import current_app
-    with current_app.app_context():
-        count = 0
-        for item in DEFAULT_SEED_CONFIGS:
-            existing = Config.query.filter_by(content=item['content']).first()
-            if not existing:
-                cfg = Config(
-                    protocol=item['protocol'],
-                    content=item['content'],
-                    host=item['host'],
-                    port=item['port'],
-                    latency_ms=item['latency_ms'],
-                    country=item['country'],
-                    country_code=item['country_code'],
-                    is_working=item['is_working'],
-                    source_url='seed',
-                    collected_at=datetime.utcnow(),
-                    checked_at=datetime.utcnow(),
-                )
-                db.session.add(cfg)
-                count += 1
-            else:
-                existing.is_working = True
-                if item['latency_ms']:
-                    existing.latency_ms = item['latency_ms']
-        db.session.commit()
-        if count > 0:
-            print(f"[Collector] Seeded {count} default working configs.")
-        save_configs_to_repo()
-        return count
+    return collect_configs()
 
 
 def parse_configs_from_text(raw_text):
@@ -644,8 +556,7 @@ def probe_all_configs():
     with current_app.app_context():
         configs = Config.query.all()
         if not configs:
-            seed_default_configs()
-            configs = Config.query.all()
+            return {'total': 0, 'working': 0, 'dead': 0}
 
         entries = [(c.id, c.host, c.port) for c in configs]
         results = {}
@@ -687,11 +598,11 @@ test_all_configs = probe_all_configs
 
 def delete_dead_configs():
     """
-    Deletes all non-working configs from database (except protected seed configs).
+    Deletes all non-working configs from database.
     """
     from flask import current_app
     with current_app.app_context():
-        deleted = Config.query.filter(Config.is_working == False, Config.source_url != 'seed').delete()
+        deleted = Config.query.filter(Config.is_working == False).delete()
         db.session.commit()
         save_configs_to_repo()
         return deleted
@@ -700,7 +611,7 @@ def delete_dead_configs():
 def collect_configs():
     """
     Hourly collector: fetches candidates from remote sources, tests connectivity,
-    and updates the database. Guarantees DB is never left empty.
+    and updates the database.
     """
     from flask import current_app
 
@@ -766,12 +677,7 @@ def collect_configs():
 
             db.session.commit()
 
-        # If zero working configs exist, populate seed pool
         current_working = Config.query.filter_by(is_working=True).count()
-        if current_working == 0:
-            seed_default_configs()
-            current_working = Config.query.filter_by(is_working=True).count()
-
         print(f"[Collector] Finished: {new_count} new, {updated_count} updated, {current_working} working total.")
         save_configs_to_repo()
         return current_working
@@ -780,7 +686,6 @@ def collect_configs():
 def get_working_configs(protocol=None, limit=200):
     """
     Returns active, tested configs sorted by country, then latency.
-    Guarantees non-empty result by seeding if database is empty.
     """
     from flask import current_app
     with current_app.app_context():
@@ -792,16 +697,6 @@ def get_working_configs(protocol=None, limit=200):
             Config.latency_ms.asc().nullslast(),
             Config.checked_at.desc(),
         ).limit(limit).all()
-
-        if not configs:
-            seed_default_configs()
-            query = Config.query.filter_by(is_working=True)
-            if protocol:
-                query = query.filter_by(protocol=protocol)
-            configs = query.order_by(
-                Config.country.asc().nullslast(),
-                Config.latency_ms.asc().nullslast(),
-            ).limit(limit).all()
 
         return configs
 
@@ -848,11 +743,18 @@ def save_configs_to_repo():
         with open(os.path.join(configs_dir, "subscription_all.txt"), 'w', encoding='utf-8') as f:
             f.write(base64.b64encode('\n'.join(all_lines).encode('utf-8')).decode('utf-8'))
 
-        protocols = set(c.protocol for c in working_configs)
-        for proto in protocols:
-            proto_configs = [c for c in working_configs if c.protocol == proto]
-            proto_lines = build_branded_lines(proto_configs)
-            with open(os.path.join(configs_dir, f"working_{proto}.txt"), 'w', encoding='utf-8') as f:
-                f.write('\n'.join(proto_lines))
+        active_protocols = set(c.protocol for c in working_configs)
+        all_protocols = ['vless', 'vmess', 'trojan', 'ss', 'hysteria2', 'tuic']
+        for proto in all_protocols:
+            proto_file = os.path.join(configs_dir, f"working_{proto}.txt")
+            if proto in active_protocols:
+                proto_configs = [c for c in working_configs if c.protocol == proto]
+                proto_lines = build_branded_lines(proto_configs)
+                with open(proto_file, 'w', encoding='utf-8') as f:
+                    f.write('\n'.join(proto_lines))
+            else:
+                if os.path.exists(proto_file):
+                    with open(proto_file, 'w', encoding='utf-8') as f:
+                        f.write('')
     except Exception as e:
         print(f"[Collector] Save configs notice: {e}")

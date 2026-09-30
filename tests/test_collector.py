@@ -104,10 +104,10 @@ def test_extract_host_port_shadowsocks_legacy_base64():
 
 
 def test_extract_host_port_shadowsocks_sip002():
-    # ss://BASE64(aes-128-gcm:pass123)@de.volta-node.net:8388#tag
+    # ss://BASE64(aes-128-gcm:pass123)@proxy.example.com:8388#tag
     userinfo = base64.b64encode("aes-128-gcm:pass123".encode()).decode()
-    host, port = extract_host_port(f"ss://{userinfo}@de.volta-node.net:8388#MyNode", 'ss')
-    assert host == 'de.volta-node.net'
+    host, port = extract_host_port(f"ss://{userinfo}@proxy.example.com:8388#MyNode", 'ss')
+    assert host == 'proxy.example.com'
     assert port == 8388
 
 
@@ -118,8 +118,8 @@ def test_extract_host_port_ipv6():
 
 
 def test_extract_host_port_hysteria2():
-    host, port = extract_host_port("hy2://pass@us.volta-node.net:443?sni=google.com#us-hy2", 'hysteria2')
-    assert host == 'us.volta-node.net'
+    host, port = extract_host_port("hy2://pass@us.example.com:443?sni=google.com#us-hy2", 'hysteria2')
+    assert host == 'us.example.com'
     assert port == 443
 
 
