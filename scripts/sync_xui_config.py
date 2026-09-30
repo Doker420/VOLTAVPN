@@ -52,6 +52,36 @@ def api_url(base, path):
     return base.rstrip("/") + "/" + path.lstrip("/")
 
 
+def login_xui(session, base, username, password):
+    """Login and transparently handle panels configured as plain HTTP."""
+    try:
+        response = session.post(
+            api_url(base, "/login"),
+            data={"username": username, "password": password},
+            timeout=20,
+        )
+    except requests.exceptions.SSLError as exc:
+        if not base.lower().startswith("https://"):
+            raise
+        # WRONG_VERSION_NUMBER means the endpoint is speaking HTTP, despite
+        # the panel's displayed Access URL saying HTTPS. Retry only with the
+        # same host/path over HTTP; never silently ignore certificate errors.
+        if "wrong_version_number" not in str(exc).lower():
+            raise
+        base = "http://" + base.split("://", 1)[1]
+        print("Предупреждение: панель отвечает обычным HTTP, переключаюсь на http://", file=sys.stderr)
+        response = session.post(
+            api_url(base, "/login"),
+            data={"username": username, "password": password},
+            timeout=20,
+        )
+    response.raise_for_status()
+    payload = response.json()
+    if not payload.get("success", True):
+        raise RuntimeError(payload.get("msg") or "Не удалось войти в 3X-UI")
+    return base
+
+
 def get_inbounds(session, base):
     response = session.get(api_url(base, "/panel/api/inbounds/list"), timeout=20)
     response.raise_for_status()
@@ -139,10 +169,7 @@ def main():
 
     session = requests.Session()
     session.verify = verify
-    login = session.post(api_url(xui_url, "/login"), data={"username": xui_user, "password": xui_password}, timeout=20)
-    login.raise_for_status()
-    if not login.json().get("success", True):
-        raise RuntimeError(login.json().get("msg") or "Не удалось войти в 3X-UI")
+    xui_url = login_xui(session, xui_url, xui_user, xui_password)
 
     inbound = choose_inbound(get_inbounds(session, xui_url), os.getenv("XUI_INBOUND_ID"))
     panel_host = urlparse(xui_url).hostname
