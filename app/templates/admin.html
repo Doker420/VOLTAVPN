@@ -482,6 +482,29 @@
                             </div>
                         </div>
 
+                        <!-- Mandatory Channel Subscription (ОП) -->
+                        <div class="p-4 rounded-4 bg-dark border border-glass mb-4">
+                            <h6 class="fw-bold text-white mb-2"><i class="bi bi-megaphone-fill text-warning me-2"></i>Обязательная подписка на канал (ОП)</h6>
+                            <p class="small text-white-50 mb-3">
+                                Бот будет требовать от пользователей обязательную подписку на ваш Telegram-канал перед началом работы и получением 3-дневного триала. Оставьте пустым, если ОП не требуется.
+                            </p>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-white-50 small">Юзернейм или ID канала (например: <code>@my_channel</code> или <code>-1001234567890</code>)</label>
+                                <input type="text" name="required_channel" value="{{ required_channel }}" class="form-control auth-input text-white" placeholder="@my_vpn_channel">
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-white-50 small">Ссылка на канал для пользователей (например: <code>https://t.me/my_channel</code>)</label>
+                                <input type="url" name="required_channel_url" value="{{ required_channel_url }}" class="form-control auth-input text-white" placeholder="https://t.me/my_vpn_channel">
+                            </div>
+
+                            <div class="p-3 bg-black rounded-3 border border-glass small text-white-50">
+                                <i class="bi bi-info-circle-fill text-warning me-1"></i>
+                                <strong>Важно:</strong> Чтобы бот мог автоматически проверять подписку пользователей, добавьте вашего бота в администраторы указанного канала с правом просмотра участников.
+                            </div>
+                        </div>
+
                         <!-- Support Contacts Settings -->
                         <div class="p-4 rounded-4 bg-dark border border-glass mb-4">
                             <h6 class="fw-bold text-white mb-2"><i class="bi bi-headset text-volt me-2"></i>Контакты службы поддержки</h6>

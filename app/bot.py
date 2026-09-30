@@ -72,6 +72,75 @@ def generate_qr_image(data, token):
     return filepath
 
 
+def get_required_channel():
+    """
+    Returns (channel_handle_or_id, channel_url) or (None, None).
+    """
+    channel = None
+    url = None
+    if flask_app:
+        with flask_app.app_context():
+            channel = AppSetting.get('REQUIRED_CHANNEL') or flask_app.config.get('REQUIRED_CHANNEL')
+            url = AppSetting.get('REQUIRED_CHANNEL_URL') or flask_app.config.get('REQUIRED_CHANNEL_URL')
+    if not channel:
+        channel = os.getenv('REQUIRED_CHANNEL')
+    if not url:
+        url = os.getenv('REQUIRED_CHANNEL_URL')
+
+    if channel and str(channel).strip():
+        channel_str = str(channel).strip()
+        if not url:
+            if channel_str.startswith('@'):
+                url = f"https://t.me/{channel_str.lstrip('@')}"
+            else:
+                url = f"https://t.me/{BOT_USERNAME}" if BOT_USERNAME else "https://t.me/"
+        return channel_str, str(url).strip()
+    return None, None
+
+
+async def is_user_subscribed_to_channel(user_id, bot):
+    """
+    Checks whether user is subscribed to the mandatory channel (ОП).
+    Admins automatically bypass check.
+    If no channel is configured, returns True.
+    """
+    if user_id in ADMIN_IDS:
+        return True
+
+    channel, url = get_required_channel()
+    if not channel:
+        return True
+
+    if not bot:
+        return True
+
+    try:
+        member = await bot.get_chat_member(chat_id=channel, user_id=user_id)
+        if member.status in ['creator', 'administrator', 'member', 'restricted']:
+            return True
+        return False
+    except Exception as e:
+        print(f"[Bot] Mandatory channel check ({channel}, user {user_id}): {e}")
+        return False
+
+
+def get_channel_gate_keyboard(channel_url):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 Подписаться на наш канал", url=channel_url)],
+        [InlineKeyboardButton("✅ Я подписался (Проверить)", callback_data="check_channel_sub")],
+    ])
+
+
+def get_channel_gate_text(channel_handle, channel_url):
+    return (
+        "📢 <b>Обязательная подписка на канал!</b>\n\n"
+        "Для использования бота, получения <b>3 дней бесплатного доступа</b> "
+        "и актуальных серверов VoltaVPN, пожалуйста, подпишитесь на наш официальный новостной канал:\n\n"
+        f"👉 <b>Канал:</b> <a href=\"{esc(channel_url)}\">{esc(channel_handle)}</a>\n\n"
+        "После подписки нажмите кнопку <b>«✅ Я подписался»</b> ниже, чтобы разблокировать доступ!"
+    )
+
+
 def get_main_keyboard(is_admin=False):
     keyboard = [
         [KeyboardButton("⚡ Подключиться"), KeyboardButton("👤 Моя подписка")],
@@ -333,9 +402,68 @@ async def check_expiry_and_notify_users():
 
 
 # ----------------------------- Bot Handlers -----------------------------
+async def check_channel_sub_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = update.effective_user
+    bot_inst = context.bot if context else (bot_app.bot if bot_app else None)
+    is_subbed = await is_user_subscribed_to_channel(user.id, bot_inst)
+
+    if not is_subbed and user.id not in ADMIN_IDS:
+        channel, url = get_required_channel()
+        await query.answer(
+            f"❌ Вы еще не подписались на наш канал!\nПожалуйста, подпишитесь на {channel} и повторите проверку.",
+            show_alert=True
+        )
+        return
+
+    await query.answer("🎉 Спасибо за подписку! Доступ к VoltaVPN разблокирован.", show_alert=True)
+    db_user, sub = get_or_create_user(user, auto_trial=True)
+    is_admin = db_user.is_admin or user.id in ADMIN_IDS
+
+    sub_status = "🟢 <b>Активна (3 дня бесплатно)</b>" if sub and not sub.is_expired() else "⚪ Нет активной подписки"
+    days_text = f"Осталось времени: <b>{sub.time_str()}</b>" if sub and not sub.is_expired() else ""
+
+    welcome_msg = (
+        f"⚡ <b>Добро пожаловать в VOLTA VPN!</b>\n\n"
+        f"Молниеносный VPN с автоматической проверкой и обновлением серверов каждый час.\n\n"
+        f"📊 <b>Ваш статус:</b> {sub_status}\n"
+        f"{days_text}\n\n"
+        f"Используйте кнопки меню ниже для подключения и управления подпиской."
+    )
+    try:
+        await query.edit_message_text(welcome_msg, parse_mode='HTML')
+    except Exception:
+        pass
+    if context and context.bot:
+        try:
+            await context.bot.send_message(
+                chat_id=user.id,
+                text="👇 Меню управления VoltaVPN:",
+                reply_markup=get_main_keyboard(is_admin)
+            )
+        except Exception:
+            pass
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     args = context.args or []
+    bot_inst = context.bot if context else (bot_app.bot if bot_app else None)
+    is_admin = user.id in ADMIN_IDS
+
+    # Check mandatory channel subscription
+    if not is_admin:
+        is_subbed = await is_user_subscribed_to_channel(user.id, bot_inst)
+        if not is_subbed:
+            get_or_create_user(user, auto_trial=False)
+            channel, url = get_required_channel()
+            await update.message.reply_text(
+                get_channel_gate_text(channel, url),
+                parse_mode='HTML',
+                reply_markup=get_channel_gate_keyboard(url),
+                disable_web_page_preview=True
+            )
+            return
 
     # Handle web link token /start link_<code>
     if args and args[0].startswith("link_"):
@@ -376,6 +504,17 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    bot_inst = context.bot if context else (bot_app.bot if bot_app else None)
+    if user.id not in ADMIN_IDS and not await is_user_subscribed_to_channel(user.id, bot_inst):
+        channel, url = get_required_channel()
+        await update.message.reply_text(
+            get_channel_gate_text(channel, url),
+            parse_mode='HTML',
+            reply_markup=get_channel_gate_keyboard(url),
+            disable_web_page_preview=True
+        )
+        return
+
     db_user, sub = get_or_create_user(user, auto_trial=True)
 
     if not sub or sub.is_expired():
@@ -416,6 +555,17 @@ async def connect_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def my_sub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    bot_inst = context.bot if context else (bot_app.bot if bot_app else None)
+    if user.id not in ADMIN_IDS and not await is_user_subscribed_to_channel(user.id, bot_inst):
+        channel, url = get_required_channel()
+        await update.message.reply_text(
+            get_channel_gate_text(channel, url),
+            parse_mode='HTML',
+            reply_markup=get_channel_gate_keyboard(url),
+            disable_web_page_preview=True
+        )
+        return
+
     db_user, sub = get_or_create_user(user, auto_trial=False)
 
     if not sub:
@@ -445,6 +595,17 @@ async def my_sub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def qr_link_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    bot_inst = context.bot if context else (bot_app.bot if bot_app else None)
+    if user.id not in ADMIN_IDS and not await is_user_subscribed_to_channel(user.id, bot_inst):
+        channel, url = get_required_channel()
+        await update.message.reply_text(
+            get_channel_gate_text(channel, url),
+            parse_mode='HTML',
+            reply_markup=get_channel_gate_keyboard(url),
+            disable_web_page_preview=True
+        )
+        return
+
     db_user, sub = get_or_create_user(user, auto_trial=True)
 
     if not sub:
@@ -472,6 +633,27 @@ async def qr_link_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def buy_menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    bot_inst = context.bot if context else (bot_app.bot if bot_app else None)
+    if user and user.id not in ADMIN_IDS and not await is_user_subscribed_to_channel(user.id, bot_inst):
+        channel, url = get_required_channel()
+        if update.callback_query:
+            await update.callback_query.answer("⚠️ Требуется подписка на канал!", show_alert=True)
+            await update.callback_query.edit_message_text(
+                get_channel_gate_text(channel, url),
+                parse_mode='HTML',
+                reply_markup=get_channel_gate_keyboard(url),
+                disable_web_page_preview=True
+            )
+        else:
+            await update.message.reply_text(
+                get_channel_gate_text(channel, url),
+                parse_mode='HTML',
+                reply_markup=get_channel_gate_keyboard(url),
+                disable_web_page_preview=True
+            )
+        return
+
     keyboard = [
         [InlineKeyboardButton("1 месяц — 199 ₽", callback_data="plan_1_month")],
         [InlineKeyboardButton("2 месяца — 378 ₽ (-5%)", callback_data="plan_2_months")],
@@ -980,18 +1162,29 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def invite_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    bot_inst = context.bot if context else (bot_app.bot if bot_app else None)
+    if user.id not in ADMIN_IDS and not await is_user_subscribed_to_channel(user.id, bot_inst):
+        channel, url = get_required_channel()
+        await update.message.reply_text(
+            get_channel_gate_text(channel, url),
+            parse_mode='HTML',
+            reply_markup=get_channel_gate_keyboard(url),
+            disable_web_page_preview=True
+        )
+        return
+
     db_user, sub = get_or_create_user(user, auto_trial=True)
     ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{db_user.ref_code}" if BOT_USERNAME else f"{base_url()}/r/{db_user.ref_code}"
 
     from urllib.parse import quote
-    share_text = "⚡ Быстрый и бесплатный VPN для России — VOLTA! Забирай доступ 👇"
+    share_text = "⚡ Быстрый и надежный VPN для России — VoltaVPN! Забирай доступ 👇"
     share_url = f"https://t.me/share/url?url={quote(ref_link, safe='')}&text={quote(share_text, safe='')}"
 
     keyboard = [
         [InlineKeyboardButton("📤 Поделиться с друзьями", url=share_url)],
     ]
     msg = (
-        f"🎁 <b>Реферальная программа VOLTA</b>\n\n"
+        f"🎁 <b>Реферальная программа VoltaVPN</b>\n\n"
         f"Делитесь вашей персональной ссылкой с друзьями:\n"
         f"<code>{esc(ref_link)}</code>"
     )
@@ -1128,6 +1321,7 @@ def init_bot(app):
     bot_app.add_handler(CallbackQueryHandler(faq_command, pattern=r"^faq_main$"))
     bot_app.add_handler(CallbackQueryHandler(faq_callback, pattern=r"^faq_"))
     bot_app.add_handler(CallbackQueryHandler(admin_reply_btn_callback, pattern=r"^rep_"))
+    bot_app.add_handler(CallbackQueryHandler(check_channel_sub_callback, pattern=r"^(check_channel_sub|check_sub)$"))
     bot_app.add_handler(CallbackQueryHandler(plan_callback, pattern=r"^(plan_|buy_menu|get_qr)"))
     bot_app.add_handler(CallbackQueryHandler(payment_callback, pattern=r"^pay_"))
     bot_app.add_handler(CallbackQueryHandler(check_pay_callback, pattern=r"^checkpay_"))

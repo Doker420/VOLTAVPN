@@ -155,3 +155,114 @@ def test_bot_instructions_and_faq_commands(app):
 
     asyncio.run(_run())
 
+
+def test_mandatory_channel_subscription_gate(app, monkeypatch):
+    """
+    Test mandatory channel subscription gate when REQUIRED_CHANNEL is set.
+    """
+    import asyncio
+    import app.bot as bot_module
+    from app.models import AppSetting
+    bot_module.flask_app = app
+    bot_module.ADMIN_IDS = []
+
+    with app.app_context():
+        AppSetting.set('REQUIRED_CHANNEL', '@voltachannel')
+        AppSetting.set('REQUIRED_CHANNEL_URL', 'https://t.me/voltachannel')
+
+    class DummyMessage:
+        def __init__(self):
+            self.replied_text = None
+            self.reply_markup = None
+
+        async def reply_text(self, text, parse_mode=None, reply_markup=None, disable_web_page_preview=None):
+            self.replied_text = text
+            self.reply_markup = reply_markup
+            return self
+
+    class DummyCallbackQuery:
+        def __init__(self, data):
+            self.data = data
+            self.message = DummyMessage()
+            self.alert_text = None
+            self.is_alert = False
+
+        async def answer(self, text=None, show_alert=False):
+            self.alert_text = text
+            self.is_alert = show_alert
+
+        async def edit_message_text(self, text, parse_mode=None, reply_markup=None):
+            self.message.replied_text = text
+            self.message.reply_markup = reply_markup
+            return self.message
+
+    class DummyBot:
+        def __init__(self):
+            self.sent_messages = []
+
+        async def send_message(self, chat_id, text, reply_markup=None, parse_mode=None):
+            self.sent_messages.append({'chat_id': chat_id, 'text': text, 'reply_markup': reply_markup})
+
+    class DummyContext:
+        def __init__(self, bot=None):
+            self.bot = bot or DummyBot()
+            self.args = []
+            self.user_data = {}
+
+    class DummyUpdate:
+        def __init__(self, user_id):
+            self.effective_user = DummyTgUser(user_id)
+            self.message = DummyMessage()
+            self.callback_query = None
+
+    async def _run_gate():
+        # 1. Non-subscribed user executes /start -> Gated!
+        sub_status = {'subscribed': False}
+
+        async def mock_is_subbed(user_id, bot_instance):
+            return sub_status['subscribed']
+
+        monkeypatch.setattr(bot_module, 'is_user_subscribed_to_channel', mock_is_subbed)
+
+        dummy_bot = DummyBot()
+        ctx = DummyContext(bot=dummy_bot)
+        update = DummyUpdate(55443322)
+
+        await bot_module.start_command(update, ctx)
+        assert update.message.replied_text is not None
+        assert 'Обязательная подписка на канал' in update.message.replied_text
+        assert '@voltachannel' in update.message.replied_text
+        assert update.message.reply_markup is not None
+
+        # 2. User tries connect command -> Gated!
+        connect_update = DummyUpdate(55443322)
+        await bot_module.connect_command(connect_update, ctx)
+        assert 'Обязательная подписка на канал' in connect_update.message.replied_text
+
+        # 3. User clicks "Я подписался" callback while still not subscribed
+        cb_update = DummyUpdate(55443322)
+        cb_update.callback_query = DummyCallbackQuery('check_channel_sub')
+        await bot_module.check_channel_sub_callback(cb_update, ctx)
+        assert cb_update.callback_query.alert_text is not None
+        assert 'Вы еще не подписались' in cb_update.callback_query.alert_text
+
+        # 4. User subscribes and clicks "Я подписался" callback again -> Success!
+        sub_status['subscribed'] = True
+        cb_update2 = DummyUpdate(55443322)
+        cb_update2.callback_query = DummyCallbackQuery('check_channel_sub')
+        await bot_module.check_channel_sub_callback(cb_update2, ctx)
+        assert 'Спасибо за подписку' in cb_update2.callback_query.alert_text
+        assert 'Добро пожаловать в VOLTA VPN' in cb_update2.callback_query.message.replied_text
+
+        # 5. Check user was granted 3-day trial after subscription
+        with app.app_context():
+            user = User.query.filter_by(telegram_id=55443322).first()
+            assert user is not None
+            sub = Subscription.query.filter_by(user_id=user.id).first()
+            assert sub is not None
+            assert not sub.is_expired()
+            assert sub.days_left() <= 3 and sub.days_left() >= 2
+
+    asyncio.run(_run_gate())
+
+

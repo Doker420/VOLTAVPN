@@ -860,6 +860,8 @@ def register_routes(flask_app):
 
         yoomoney_receiver, yoomoney_token, yoomoney_secret = _yoomoney_credentials()
         support_contacts = _support_contacts()
+        required_channel = AppSetting.get('REQUIRED_CHANNEL') or current_app.config.get('REQUIRED_CHANNEL', '')
+        required_channel_url = AppSetting.get('REQUIRED_CHANNEL_URL') or current_app.config.get('REQUIRED_CHANNEL_URL', '')
 
         stats = {
             'total_users': total_users,
@@ -885,6 +887,8 @@ def register_routes(flask_app):
             yoomoney_token=yoomoney_token,
             yoomoney_secret=yoomoney_secret,
             support_contacts=support_contacts,
+            required_channel=required_channel,
+            required_channel_url=required_channel_url,
             search_query=search_query,
         )
 
@@ -1054,12 +1058,16 @@ def register_routes(flask_app):
         yoomoney_secret = (request.form.get('yoomoney_secret') or '').strip()
         support_email = (request.form.get('support_email') or '').strip()
         support_telegram = (request.form.get('support_telegram') or '').strip()
+        required_channel = (request.form.get('required_channel') or '').strip()
+        required_channel_url = (request.form.get('required_channel_url') or '').strip()
 
         AppSetting.set('YOOMONEY_RECEIVER', yoomoney_receiver, 'YooMoney кошелёк')
         AppSetting.set('YOOMONEY_TOKEN', yoomoney_token, 'YooMoney OAuth токен')
         AppSetting.set('YOOMONEY_NOTIFICATION_SECRET', yoomoney_secret, 'YooMoney секрет уведомлений')
         AppSetting.set('SUPPORT_EMAIL', support_email, 'Email поддержки')
         AppSetting.set('SUPPORT_TELEGRAM', support_telegram, 'Telegram поддержки')
+        AppSetting.set('REQUIRED_CHANNEL', required_channel, 'Обязательный канал для ОП')
+        AppSetting.set('REQUIRED_CHANNEL_URL', required_channel_url, 'Ссылка на обязательный канал')
 
         flash('Настройки успешно сохранены!', 'success')
         return redirect(url_for('admin_dashboard') + '#settings')

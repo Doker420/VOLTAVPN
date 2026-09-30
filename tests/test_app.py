@@ -366,6 +366,22 @@ trojan://pass1234@nl3.volta-node.net:443?security=tls#VOLTA-NL-Batch2
         assert Config.query.filter_by(host='de3.volta-node.net').first() is not None
         assert Config.query.filter_by(host='nl3.volta-node.net').first() is not None
 
+    # Admin saves settings (Support, YooMoney, Required Channel)
+    resp_settings = client.post('/admin/settings/save', data={
+        'support_email': 'support@vpn.stas-max.ru',
+        'support_telegram': '@ILSupport',
+        'required_channel': '@volta_channel_official',
+        'required_channel_url': 'https://t.me/volta_channel_official',
+        'yoomoney_wallet': '4100112345678901',
+    }, follow_redirects=True)
+    assert resp_settings.status_code == 200
+
+    with app.app_context():
+        from app.models import AppSetting
+        assert AppSetting.get('REQUIRED_CHANNEL') == '@volta_channel_official'
+        assert AppSetting.get('REQUIRED_CHANNEL_URL') == 'https://t.me/volta_channel_official'
+        assert AppSetting.get('SUPPORT_TELEGRAM') == '@ILSupport'
+
 
 def test_legal_and_knowledge_base_pages(client, app):
     """
