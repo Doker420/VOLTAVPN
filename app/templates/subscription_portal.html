@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container py-3" style="max-width: 780px;">
+
+        <!-- Status Card -->
+        <div class="card-glass p-4 p-md-5 mb-4 text-center text-md-start">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4 pb-3 border-bottom border-glass">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center shadow-lg" style="width: 64px; height: 64px; background: rgba(56, 189, 248, 0.15); border: 2px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 28px;">
+                        <i class="bi bi-shield-lock-fill"></i>
+                    </div>
+                    <div>
+                        <span class="badge {% if not is_expired and is_active %}badge-neon-emerald{% else %}bg-danger{% endif %} mb-1">
+                            {% if not is_expired and is_active %}🟢 Подписка активна{% else %}🔴 Истекла{% endif %}
+                        </span>
+                        <h3 class="fw-bold text-white mb-0">VoltaVPN · {{ plan_name }}</h3>
+                        <small class="text-white-50">До {{ end_date if end_date else 'неограниченно' }}</small>
+                    </div>
+                </div>
+
+                <div class="text-md-end">
+                    <span class="fs-2 fw-bold {% if not is_expired and is_active %}text-emerald{% else %}text-danger{% endif %}">
+                        {{ time_left }}
+                    </span>
+                    <span class="d-block text-white-50 small">осталось времени</span>
+                </div>
+            </div>
+
+            <!-- Fast Import Buttons -->
+            <h5 class="fw-bold text-white mb-3 text-start">
+                <i class="bi bi-lightning-charge-fill text-volt me-2"></i> Быстрый импорт в 1 клик:
+            </h5>
+            <div class="row g-3 mb-4">
+                <div class="col-sm-6">
+                    <a href="/open/karing/{{ sub_token }}" class="btn btn-glass-card w-100 p-3 text-start d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <i class="bi bi-phone text-volt fs-3"></i>
+                            <div>
+                                <h6 class="fw-bold text-white mb-0">Karing</h6>
+                                <small class="text-white-50">iOS / Android / Mac</small>
+                            </div>
+                        </div>
+                        <i class="bi bi-box-arrow-up-right text-white-50"></i>
+                    </a>
+                </div>
+
+                <div class="col-sm-6">
+                    <a href="/open/v2rayng/{{ sub_token }}" class="btn btn-glass-card w-100 p-3 text-start d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <i class="bi bi-android2 text-emerald fs-3"></i>
+                            <div>
+                                <h6 class="fw-bold text-white mb-0">v2rayNG</h6>
+                                <small class="text-white-50">Android (в 1 клик)</small>
+                            </div>
+                        </div>
+                        <i class="bi bi-box-arrow-up-right text-white-50"></i>
+                    </a>
+                </div>
+
+                <div class="col-sm-6">
+                    <a href="/open/streisand/{{ sub_token }}" class="btn btn-glass-card w-100 p-3 text-start d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <i class="bi bi-apple text-white fs-3"></i>
+                            <div>
+                                <h6 class="fw-bold text-white mb-0">Streisand</h6>
+                                <small class="text-white-50">iPhone / iPad / Mac</small>
+                            </div>
+                        </div>
+                        <i class="bi bi-box-arrow-up-right text-white-50"></i>
+                    </a>
+                </div>
+
+                <div class="col-sm-6">
+                    <a href="/open/hiddify/{{ sub_token }}" class="btn btn-glass-card w-100 p-3 text-start d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <i class="bi bi-shield-check text-indigo fs-3"></i>
+                            <div>
+                                <h6 class="fw-bold text-white mb-0">Hiddify</h6>
+                                <small class="text-white-50">Windows / Android / Mac</small>
+                            </div>
+                        </div>
+                        <i class="bi bi-box-arrow-up-right text-white-50"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Copy Link Box -->
+            <div class="p-3 bg-dark rounded-4 border border-glass mb-4">
+                <label class="form-label text-white-50 small mb-2 d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-link-45deg text-volt me-1"></i> Ссылка подписки (для добавления вручную)</span>
+                    <a href="/sub/{{ sub_token }}?format=txt" download="VoltaVPN.txt" class="text-volt text-decoration-none small">
+                        <i class="bi bi-file-earmark-arrow-down me-1"></i> Скачать .txt
+                    </a>
+                </label>
+                <div class="input-group">
+                    <input type="text" id="subUrlField" class="form-control copy-field text-white px-3 py-2" value="{{ sub_url }}" readonly>
+                    <button class="btn btn-glow-primary px-4" onclick="copyPortalSubUrl()">
+                        <i class="bi bi-clipboard me-1" id="portalCopyIcon"></i> <span id="portalCopyText">Скопировать</span>
+                    </button>
+                </div>
+                <div class="form-text text-white-50 small mt-2">
+                    <i class="bi bi-arrow-repeat text-emerald me-1"></i> Автообновление серверов настроено каждый час. Ручная смена конфигов не требуется.
+                </div>
+            </div>
+
+            <!-- QR Code Box -->
+            {% if qr_code_url %}
+            <div class="p-3 bg-dark rounded-4 border border-glass text-center mb-4">
+                <h6 class="fw-bold text-white mb-2"><i class="bi bi-qr-code text-volt me-1"></i> QR-код для ТВ и других устройств</h6>
+                <p class="small text-white-50 mb-3">Отсканируйте камерой в приложении Karing или Streisand для быстрого импорта:</p>
+                <img src="{{ qr_code_url }}" alt="QR Code" class="img-fluid rounded-3 border border-glass p-2 bg-white shadow-lg" style="max-width: 200px;">
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center pt-3 border-top border-glass">
+                <a href="{{ login_url }}" class="btn btn-glow-volt px-4 py-2">
+                    <i class="bi bi-person-circle me-1"></i> Войти в личный кабинет
+                </a>
+                <div class="d-flex gap-2">
+                    <a href="/instructions" class="btn btn-glass-secondary px-3 py-2 small">
+                        <i class="bi bi-book me-1"></i> Инструкции
+                    </a>
+                    <a href="https://t.me/ILSupport" target="_blank" class="btn btn-glass-secondary px-3 py-2 small">
+                        <i class="bi bi-chat-dots me-1"></i> Поддержка
+                    </a>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyPortalSubUrl() {
+    const input = document.getElementById('subUrlField');
+    if (!input) return;
+    input.select();
+    input.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(input.value).then(() => {
+        const icon = document.getElementById('portalCopyIcon');
+        const text = document.getElementById('portalCopyText');
+        if (icon) icon.className = 'bi bi-check2 text-emerald';
+        if (text) text.innerText = 'Скопировано!';
+        setTimeout(() => {
+            if (icon) icon.className = 'bi bi-clipboard';
+            if (text) text.innerText = 'Скопировать';
+        }, 2000);
+    });
+}
+</script>
+{% endblock %}

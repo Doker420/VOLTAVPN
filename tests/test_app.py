@@ -111,7 +111,8 @@ def test_registration_validation(client, app):
 
 def test_dynamic_subscription_feed(client, app):
     """
-    Test 3: Subscription endpoint /sub/<token> returns active working configs.
+    Test 3: Subscription endpoint /sub/<token> returns active working configs for VPN clients,
+    and returns rich web portal for web browsers.
     Auto-updates dynamically when new configs are added.
     """
     # Register user and get sub token
@@ -125,8 +126,8 @@ def test_dynamic_subscription_feed(client, app):
         sub = Subscription.query.filter_by(user_id=user.id).first()
         token = sub.sub_token
 
-    # Request subscription feed
-    resp = client.get(f'/sub/{token}')
+    # 1. VPN client requests subscription feed
+    resp = client.get(f'/sub/{token}', headers={'User-Agent': 'v2rayNG/1.8.5'})
     assert resp.status_code == 200
     assert 'Subscription-Userinfo' in resp.headers
     assert resp.headers.get('Profile-Update-Interval') == '1'
@@ -137,15 +138,61 @@ def test_dynamic_subscription_feed(client, app):
     initial_count = len(decoded.strip().splitlines())
     assert initial_count > 0
 
+    # 2. Browser requests subscription page -> Web portal HTML
+    resp_browser = client.get(f'/sub/{token}', headers={'Accept': 'text/html,application/xhtml+xml', 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'})
+    assert resp_browser.status_code == 200
+    assert 'VoltaVPN'.encode('utf-8') in resp_browser.data
+    assert 'Karing'.encode('utf-8') in resp_browser.data
+    assert 'v2rayNG'.encode('utf-8') in resp_browser.data
+    assert 'Быстрый импорт'.encode('utf-8') in resp_browser.data
+
     # Add new custom config
     with app.app_context():
         new_uri = "vless://abcdef12-3456-7890-abcd-ef1234567890@jp.volta-node.net:443?type=tcp&security=reality#VoltaVPN-JP-New"
         add_custom_config(new_uri, country_code='JP')
 
     # Fetch feed again — it dynamically includes the new node!
-    resp2 = client.get(f'/sub/{token}')
+    resp2 = client.get(f'/sub/{token}', headers={'User-Agent': 'Karing/1.0'})
     decoded2 = base64.b64decode(resp2.data).decode('utf-8')
     assert 'Япония' in decoded2 or 'JP' in decoded2 or 'jp.volta-node.net' in decoded2
+
+
+def test_tg_login_and_update_profile(client, app):
+    """
+    Test seamless Telegram 1-click web login (/tg-login/<token>)
+    and updating profile credentials in personal cabinet (/update-profile).
+    """
+    with app.app_context():
+        user = User(
+            username='tg_bot_user',
+            telegram_id=987654321,
+            telegram_verified=True,
+            login_token='secret_login_token_abc',
+        )
+        db.session.add(user)
+        db.session.commit()
+
+    # 1. 1-click login from Telegram bot
+    resp = client.get('/tg-login/secret_login_token_abc', follow_redirects=True)
+    assert resp.status_code == 200
+    assert 'Личный кабинет'.encode('utf-8') in resp.data
+
+    # 2. Update profile: set custom password & email
+    resp_update = client.post('/update-profile', data={
+        'username': 'tg_bot_user_renamed',
+        'email': 'myuser@vpn.stas-max.ru',
+        'password': 'newpassword123',
+    }, follow_redirects=True)
+    assert resp_update.status_code == 200
+
+    # 3. Verify user can now also log in with the new password
+    client.get('/logout')
+    resp_login = client.post('/login', data={
+        'username': 'tg_bot_user_renamed',
+        'password': 'newpassword123',
+    }, follow_redirects=True)
+    assert resp_login.status_code == 200
+    assert 'Личный кабинет'.encode('utf-8') in resp_login.data
 
 
 def test_expired_subscription_feed(client, app):

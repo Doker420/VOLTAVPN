@@ -266,3 +266,135 @@ def test_mandatory_channel_subscription_gate(app, monkeypatch):
     asyncio.run(_run_gate())
 
 
+def test_link_telegram_merges_existing_tg_user_without_unique_constraint_error(app, monkeypatch):
+    """
+    Test linking Telegram when an existing user with the same telegram_id already exists in the database.
+    Ensures no SQLite UNIQUE constraint failed error occurs, and data is seamlessly merged.
+    """
+    import asyncio
+    import uuid
+    import app.bot as bot_module
+    from datetime import datetime, timedelta
+    bot_module.flask_app = app
+    bot_module.ADMIN_IDS = []
+
+    tg_id = int(str(uuid.uuid4().int)[:9])
+    link_code = uuid.uuid4().hex[:12]
+    web_username = f"web_{uuid.uuid4().hex[:8]}"
+    sub_token = uuid.uuid4().hex
+
+    with app.app_context():
+        # Web user registered on website
+        web_user = User(
+            username=web_username,
+            email=f"{web_username}@example.com",
+            link_code=link_code,
+            telegram_id=None,
+        )
+        web_user.set_password('webpass123')
+        db.session.add(web_user)
+
+        # Telegram user was previously created by bot
+        tg_stub_user = User(
+            username=f'tg_stub_{tg_id}',
+            telegram_id=tg_id,
+            telegram_verified=True,
+        )
+        db.session.add(tg_stub_user)
+        db.session.commit()
+
+        # Add subscription to the tg stub
+        sub_tg = Subscription(
+            user_id=tg_stub_user.id,
+            plan='1_month',
+            sub_token=sub_token,
+            end_date=datetime.utcnow() + timedelta(days=30),
+            is_active=True,
+        )
+        db.session.add(sub_tg)
+        db.session.commit()
+
+    class DummyMessage:
+        def __init__(self):
+            self.replied_text = None
+            self.reply_markup = None
+
+        async def reply_text(self, text, parse_mode=None, reply_markup=None):
+            self.replied_text = text
+            self.reply_markup = reply_markup
+            return self
+
+    class DummyBot:
+        def __init__(self):
+            pass
+
+    class DummyContext:
+        def __init__(self, args=None):
+            self.bot = DummyBot()
+            self.args = args or []
+            self.user_data = {}
+
+    class DummyUpdate:
+        def __init__(self, user_id):
+            self.effective_user = DummyTgUser(user_id)
+            self.message = DummyMessage()
+
+    async def _run_link():
+        async def mock_is_subbed(user_id, bot_instance):
+            return True
+
+        monkeypatch.setattr(bot_module, 'is_user_subscribed_to_channel', mock_is_subbed)
+
+        ctx = DummyContext(args=[f"link_{link_code}"])
+        update = DummyUpdate(tg_id)
+
+        # Execute start command with link code
+        await bot_module.start_command(update, ctx)
+
+        assert 'Telegram успешно привязан' in update.message.replied_text
+        assert web_username in update.message.replied_text
+
+        with app.app_context():
+            updated_web_user = User.query.filter_by(username=web_username).first()
+            assert updated_web_user.telegram_id == tg_id
+            assert updated_web_user.telegram_verified is True
+            # Check subscription was transferred
+            transferred_sub = Subscription.query.filter_by(sub_token=sub_token).first()
+            assert transferred_sub.user_id == updated_web_user.id
+
+    asyncio.run(_run_link())
+
+
+def test_bot_web_login_command(app):
+    """
+    Test /login and /web command outputs login token link.
+    """
+    import asyncio
+    import app.bot as bot_module
+    bot_module.flask_app = app
+
+    class DummyMessage:
+        def __init__(self):
+            self.replied_text = None
+            self.reply_markup = None
+
+        async def reply_text(self, text, parse_mode=None, reply_markup=None):
+            self.replied_text = text
+            self.reply_markup = reply_markup
+            return self
+
+    class DummyUpdate:
+        def __init__(self, user_id):
+            self.effective_user = DummyTgUser(user_id)
+            self.message = DummyMessage()
+
+    async def _run():
+        update = DummyUpdate(77889900)
+        await bot_module.web_login_command(update, None)
+        assert 'Личный кабинет VoltaVPN' in update.message.replied_text
+        assert update.message.reply_markup is not None
+
+    asyncio.run(_run())
+
+
+

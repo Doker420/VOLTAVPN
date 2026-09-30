@@ -385,10 +385,42 @@ def register_routes(flask_app):
     def tg_login(token):
         user = User.query.filter_by(login_token=token).first()
         if not user:
-            flash('Ссылка входа недействительна. Откройте бот и запросите ссылку снова.', 'danger')
-            return redirect(url_for('index'))
-        login_user(user)
+            flash('Ссылка для входа недействительна или устарела. Откройте Telegram-бота и запросите ссылку заново.', 'danger')
+            return redirect(url_for('index', auth='login'))
+        login_user(user, remember=True)
+        flash(f'🎉 Добро пожаловать, {user.username}! Вы успешно вошли в личный кабинет.', 'success')
         return redirect(url_for('dashboard', welcome=1))
+
+    @flask_app.route('/update-profile', methods=['POST'])
+    @login_required
+    def update_profile():
+        new_username = (request.form.get('username') or '').strip()
+        new_email = (request.form.get('email') or '').strip().lower()
+        new_password = (request.form.get('password') or '').strip()
+
+        if new_username and new_username != current_user.username:
+            existing = User.query.filter(User.username == new_username, User.id != current_user.id).first()
+            if existing:
+                flash('Это имя пользователя уже занято.', 'danger')
+                return redirect(url_for('dashboard') + '#profile-settings')
+            current_user.username = new_username
+
+        if new_email:
+            existing_email = User.query.filter(User.email == new_email, User.id != current_user.id).first()
+            if existing_email:
+                flash('Этот email уже привязан к другому аккаунту.', 'danger')
+                return redirect(url_for('dashboard') + '#profile-settings')
+            current_user.email = new_email
+
+        if new_password:
+            if len(new_password) < 6:
+                flash('Пароль должен содержать минимум 6 символов.', 'danger')
+                return redirect(url_for('dashboard') + '#profile-settings')
+            current_user.set_password(new_password)
+
+        db.session.commit()
+        flash('Данные профиля успешно обновлены!', 'success')
+        return redirect(url_for('dashboard') + '#profile-settings')
 
     @flask_app.route('/dashboard')
     @login_required
@@ -581,9 +613,11 @@ def register_routes(flask_app):
     @flask_app.route('/sub/<sub_token>')
     def subscription_feed(sub_token):
         """
-        Dynamic Subscription Endpoint for V2Ray / Karing / Streisand / NekoBox / Hiddify / Sing-box.
-        Checks active status & returns verified Base64 configs.
-        Sends Profile headers so client apps automatically update periodically.
+        Dynamic Subscription Endpoint:
+        - VPN clients (Karing, v2rayNG, Streisand, Hiddify, sing-box, Clash, Shadowrocket, curl, etc.)
+          or requests with ?format=raw / ?format=base64 receive the base64-encoded config feed with profile headers.
+        - Web browsers (Safari, Chrome, Firefox, Telegram WebKit) receive an interactive Subscription Portal
+          with 1-click import buttons, QR code, remaining time, and direct app links.
         """
         def _sub_headers(sub_obj, title='VoltaVPN'):
             headers = {
@@ -591,7 +625,6 @@ def register_routes(flask_app):
                 'Update-Interval': '1',
                 'Profile-Title': title,
                 'Profile-Web-Page-Url': f"{get_base_url()}/dashboard",
-                'Content-Disposition': f'inline; filename="{title}"',
             }
             if sub_obj is not None:
                 expire_ts = int(sub_obj.end_date.timestamp())
@@ -601,20 +634,81 @@ def register_routes(flask_app):
                 )
             return headers
 
+        format_param = request.args.get('format', '').lower().strip()
+        user_agent = request.headers.get('User-Agent', '').lower()
+        accept_header = request.headers.get('Accept', '').lower()
+
+        is_vpn_client = any(client in user_agent for client in [
+            'karing', 'v2rayng', 'streisand', 'hiddify', 'sing-box', 'clash',
+            'shadowrocket', 'quantumult', 'loon', 'surge', 'nekobox', 'matsuri',
+            'curl', 'python-requests', 'wget', 'go-http-client', 'okhttp', 'dart'
+        ])
+
+        is_browser = ('text/html' in accept_header or 'application/xhtml+xml' in accept_header) and not is_vpn_client
+        wants_raw = format_param in ['raw', 'base64', 'b64'] or (is_vpn_client and not is_browser)
+
         if sub_token == 'public':
+            if is_browser and not wants_raw:
+                return render_template(
+                    'subscription_portal.html',
+                    sub=None,
+                    sub_token='public',
+                    sub_url=f"{get_base_url()}/sub/public",
+                    login_url=f"{get_base_url()}/dashboard",
+                    plan_name='Публичный доступ',
+                    is_active=True,
+                    is_expired=False,
+                    time_left="Неограниченно",
+                    end_date="Бессрочно",
+                    qr_code_url=None,
+                    deep_links=build_deep_links(f"{get_base_url()}/sub/public"),
+                )
             feed = generate_subscription_feed(is_base64=True, limit=100)
             return Response(feed, mimetype='text/plain; charset=utf-8',
                             headers=_sub_headers(None, 'VoltaVPN'))
 
         sub = Subscription.query.filter_by(sub_token=sub_token).first()
         if not sub:
+            if is_browser and not wants_raw:
+                return render_template('subscription_not_found.html', sub_token=sub_token), 404
             return Response("Invalid Subscription Token", status=404, mimetype='text/plain')
+
+        if is_browser and not wants_raw:
+            user = sub.user
+            login_url = f"{get_base_url()}/tg-login/{user.login_token}" if (user and user.login_token) else f"{get_base_url()}/dashboard"
+            sub_url = f"{get_base_url()}/sub/{sub.sub_token}"
+            if not sub.qr_code_path or not os.path.exists(os.path.join(current_app.root_path, 'static', sub.qr_code_path)):
+                sub.qr_code_path = generate_qr_code(sub_url, sub.sub_token)
+                db.session.commit()
+
+            plan_name = PLANS.get(sub.plan, {}).get('name', sub.plan)
+            return render_template(
+                'subscription_portal.html',
+                sub=sub,
+                user=user,
+                sub_token=sub.sub_token,
+                sub_url=sub_url,
+                login_url=login_url,
+                plan_name=plan_name,
+                is_active=sub.is_active,
+                is_expired=sub.is_expired(),
+                time_left=sub.time_left_str(),
+                end_date=sub.end_date.strftime('%d.%m.%Y %H:%M'),
+                qr_code_url=url_for('static', filename=sub.qr_code_path) if sub.qr_code_path else None,
+                deep_links=build_deep_links(sub_url),
+            )
+
+        if format_param == 'txt':
+            raw_feed = generate_subscription_feed(is_base64=False, limit=150)
+            return Response(raw_feed, mimetype='text/plain; charset=utf-8',
+                            headers=_sub_headers(sub, 'VoltaVPN'))
 
         if not sub.is_active or sub.is_expired():
             blocked_msg = "vless://00000000-0000-0000-0000-000000000000@127.0.0.1:443?encryption=none&security=none#%E2%9A%A0%EF%B8%8F%20VoltaVPN%20%7C%20%D0%9F%D0%BE%D0%B4%D0%BF%D0%B8%D1%81%D0%BA%D0%B0%20%D0%B8%D1%81%D1%82%D0%B5%D0%BA%D0%BB%D0%B0!%20%D0%9F%D1%80%D0%BE%D0%B4%D0%BB%D0%B8%D1%82%D0%B5%20%D0%BD%D0%B0%20VoltaVPN"
             b64_blocked = base64.b64encode(blocked_msg.encode('utf-8')).decode('utf-8')
             headers = {
                 'Profile-Title': 'VoltaVPN (истекла)',
+                'Profile-Update-Interval': '1',
                 'Subscription-Userinfo': f"upload=0; download=0; total=0; expire={int(sub.end_date.timestamp())}",
             }
             return Response(b64_blocked, mimetype='text/plain; charset=utf-8', headers=headers)
@@ -760,7 +854,7 @@ def register_routes(flask_app):
                 continue
             unread_count = SupportMessage.query.filter_by(session_id=s_id, sender_type='user', is_read=False).count() + \
                            SupportMessage.query.filter_by(session_id=s_id, sender_type='guest', is_read=False).count()
-            user_obj = User.query.get(last_msg.user_id) if last_msg.user_id else None
+            user_obj = db.session.get(User, last_msg.user_id) if last_msg.user_id else None
 
             chats.append({
                 'session_id': s_id,

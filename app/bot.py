@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-from app.models import User, Subscription, Config, Payment, SupportMessage, AppSetting, db
+from app.models import User, Subscription, Config, Payment, SupportMessage, AppSetting, Referral, TrialClaim, db
 from app.payment import create_platega_payment, create_cryptobot_payment, create_yoomoney_payment, check_payment_status
 from app.collector import get_working_configs
 
@@ -199,10 +199,17 @@ def get_or_create_user(telegram_user, auto_trial=True):
         user = User.query.filter_by(telegram_id=telegram_user.id).first()
         is_new = False
         if not user:
+            base_uname = (telegram_user.username or f"user_{telegram_user.id}").strip()
+            uname = base_uname
+            idx = 1
+            while User.query.filter_by(username=uname).first():
+                uname = f"{base_uname}_{telegram_user.id if idx == 1 else idx}"
+                idx += 1
+
             user = User(
                 telegram_id=telegram_user.id,
                 telegram_verified=True,
-                username=telegram_user.username or f"user_{telegram_user.id}",
+                username=uname,
                 email=None,
                 login_token=uuid.uuid4().hex,
                 ref_code=uuid.uuid4().hex[:10],
@@ -467,20 +474,62 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Handle web link token /start link_<code>
     if args and args[0].startswith("link_"):
-        link_code = args[0].replace("link_", "")
+        link_code = args[0].replace("link_", "").strip()
         with flask_app.app_context():
             web_user = User.query.filter_by(link_code=link_code).first()
             if web_user:
+                # Find if any other User record has this telegram_id and merge
+                existing_tg_users = User.query.filter(User.telegram_id == user.id, User.id != web_user.id).all()
+                for old_user in existing_tg_users:
+                    old_id = old_user.id
+                    # Transfer any subscriptions from old_user to web_user in DB
+                    Subscription.query.filter_by(user_id=old_id).update({'user_id': web_user.id})
+                    # Transfer payments
+                    Payment.query.filter_by(user_id=old_id).update({'user_id': web_user.id})
+                    # Transfer referrals
+                    Referral.query.filter_by(referrer_id=old_id).update({'referrer_id': web_user.id})
+                    # Transfer support messages
+                    SupportMessage.query.filter_by(user_id=old_id).update({'user_id': web_user.id})
+
+                    # Expire all cached session state so cascade delete doesn't touch transferred objects
+                    db.session.expire_all()
+
+                    refreshed_old_user = db.session.get(User, old_id)
+                    if refreshed_old_user:
+                        refreshed_old_user.telegram_id = None
+                        refreshed_old_user.telegram_verified = False
+                        if not refreshed_old_user.password_hash and (not refreshed_old_user.email or '@telegram.user' in refreshed_old_user.email):
+                            db.session.delete(refreshed_old_user)
+
+                    db.session.flush()
+
+                web_user = db.session.get(User, web_user.id)
                 web_user.telegram_id = user.id
                 web_user.telegram_verified = True
-                if not web_user.is_trial_used:
+                if not web_user.login_token:
+                    web_user.login_token = uuid.uuid4().hex
+                if not web_user.ref_code:
+                    web_user.ref_code = uuid.uuid4().hex[:10]
+
+                # Check if web_user has an active sub
+                active_sub = web_user.active_subscription()
+                if not active_sub and not web_user.is_trial_used:
                     from app.routes import grant_trial
                     grant_trial(web_user, telegram_id=user.id, days=TRIAL_DAYS)
+
+                # Reset link_code so token cannot be reused
+                web_user.link_code = uuid.uuid4().hex[:12]
                 db.session.commit()
+
+                web_login_url = f"{base_url()}/tg-login/{web_user.login_token}"
+                link_kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⚡ Подключиться", callback_data="buy_menu")],
+                    [InlineKeyboardButton("🌐 Войти в личный кабинет на сайте", url=web_login_url)],
+                ])
 
                 await update.message.reply_text(
                     f"🎉 <b>Telegram успешно привязан к аккаунту {esc(web_user.username)}!</b>\n\n"
-                    f"Ваш бесплатный период на 3 дня активен. Можете вернуться на сайт или управлять подпиской прямо здесь.",
+                    f"Ваши данные и подписки синхронизированы. Вы можете управлять серверами в боте или в личном кабинете на сайте.",
                     parse_mode='HTML',
                     reply_markup=get_main_keyboard(is_admin=web_user.is_admin or user.id in ADMIN_IDS)
                 )
@@ -586,11 +635,35 @@ async def my_sub_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• <b>Окончание:</b> {sub.end_date.strftime('%d.%m.%Y %H:%M')}\n\n"
         f"🔗 <b>Ссылка подписки:</b>\n<code>{esc(sub_link(sub))}</code>"
     )
+    web_login_url = f"{base_url()}/tg-login/{db_user.login_token}" if db_user.login_token else base_url()
     keyboard = [
         [InlineKeyboardButton("💳 Продлить подписку", callback_data="buy_menu")],
         [InlineKeyboardButton("📥 Получить QR-код", callback_data="get_qr")],
+        [InlineKeyboardButton("🌐 Личный кабинет на сайте", url=web_login_url)],
     ]
     await update.message.reply_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def web_login_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    db_user, sub = get_or_create_user(user, auto_trial=True)
+    web_url = f"{base_url()}/tg-login/{db_user.login_token}" if db_user.login_token else base_url()
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌐 Войти в личный кабинет", url=web_url)],
+        [InlineKeyboardButton("⚡ Инструкции по настройке", url=f"{base_url()}/instructions")],
+    ])
+    msg = (
+        f"🌐 <b>Личный кабинет VoltaVPN:</b>\n\n"
+        f"👤 <b>Ваш логин:</b> <code>{esc(db_user.username)}</code>\n"
+        f"🔑 <b>Быстрый вход без пароля:</b>\n"
+        f"Нажмите кнопку ниже, чтобы войти в личный кабинет на сайте.\n\n"
+        f"На сайте вы можете скачивать конфигурации для ПК, менять настройки профиля и управлять устройствами."
+    )
+    if getattr(update, 'callback_query', None):
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(msg, parse_mode='HTML', reply_markup=kb)
+    else:
+        await update.message.reply_text(msg, parse_mode='HTML', reply_markup=kb)
 
 
 async def qr_link_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1300,6 +1373,10 @@ def init_bot(app):
     bot_app.add_handler(CommandHandler("start", start_command))
     bot_app.add_handler(CommandHandler("sub", my_sub_command))
     bot_app.add_handler(CommandHandler("connect", connect_command))
+    bot_app.add_handler(CommandHandler("login", web_login_command))
+    bot_app.add_handler(CommandHandler("web", web_login_command))
+    bot_app.add_handler(CommandHandler("cabinet", web_login_command))
+    bot_app.add_handler(CommandHandler("dashboard", web_login_command))
     bot_app.add_handler(CommandHandler("invite", invite_command))
     bot_app.add_handler(CommandHandler("buy", buy_menu_command))
     bot_app.add_handler(CommandHandler("stats", stats_command))
