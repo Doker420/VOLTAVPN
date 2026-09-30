@@ -9,11 +9,6 @@ import subprocess
 import ssl
 import html
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-try:
-    import socks  # PySocks: optional SOCKS5/HTTP CONNECT egress for probes
-except ImportError:
-    socks = None
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs, unquote, quote
 from sqlalchemy import or_, and_
@@ -241,47 +236,67 @@ def extract_sni_and_tls(uri, proto):
         return None, False
 
 
+def _check_tcp_from_russia(host, port, timeout=8.0):
+    """Check a node from Check-Host's Moscow node without a proxy.
+
+    This is a reachability check only (not a Reality/TLS validation), but it
+    prevents publishing nodes that are reachable from the hosting provider and
+    blocked from Russian networks.
+    """
+    if not os.getenv('RUSSIA_CHECK_HOST', '').strip().lower() in {'1', 'true', 'yes', 'on'}:
+        return None
+    try:
+        target = f'{host}:{int(port)}'
+        response = requests.get(
+            'https://check-host.net/check-tcp',
+            params={'host': target, 'node': 'ru1.node.check-host.net'},
+            headers={'Accept': 'application/json'}, timeout=timeout,
+        )
+        response.raise_for_status()
+        request_id = response.json().get('request_id')
+        if not request_id:
+            return None
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            time.sleep(1.0)
+            result = requests.get(
+                f'https://check-host.net/check-result/{request_id}',
+                headers={'Accept': 'application/json'}, timeout=timeout,
+            ).json()
+            node_result = result.get('ru1.node.check-host.net')
+            if node_result is None:
+                continue
+            if isinstance(node_result, list) and node_result and isinstance(node_result[0], dict):
+                if node_result[0].get('error'):
+                    return None
+                seconds = node_result[0].get('time')
+                return round(float(seconds) * 1000, 2) if seconds is not None else 1.0
+            return None
+    except Exception as exc:
+        print(f'[Collector] Check-Host RU probe failed: {exc}')
+    return None
+
+
 def test_tcp_connection(host, port, timeout=TCP_TIMEOUT, sni=None, is_tls=False):
     """
     Tests TCP connection and optionally TLS handshake to host:port.
-    Measures latency in milliseconds.
-    Filters out dead nodes, closed ports, and TLS handshake failures.
+    When RUSSIA_CHECK_HOST=true, reachability is checked from Moscow first.
     """
     if not host or not port:
         return None
 
+    if os.getenv('RUSSIA_CHECK_HOST', '').strip().lower() in {'1', 'true', 'yes', 'on'}:
+        ru_latency = _check_tcp_from_russia(host, port)
+        if ru_latency is None:
+            return None
+        # Check-Host proves Russian TCP reachability. Continue with the local
+        # TLS/Reality probe only when the local server can also reach the node.
+
+
     clean_host = host.strip('[]')
     start_time = time.time()
     try:
-        proxy_url = os.getenv('RUSSIA_PROXY', '').strip()
-        if proxy_url:
-            if socks is None:
-                print('[Collector] RUSSIA_PROXY is set but PySocks is not installed')
-                return None
-            parsed_proxy = urlparse(proxy_url)
-            proxy_scheme = parsed_proxy.scheme.lower()
-            proxy_types = {
-                'socks5': socks.SOCKS5,
-                'socks5h': socks.SOCKS5,
-                'socks4': socks.SOCKS4,
-                'http': socks.HTTP,
-                'https': socks.HTTP,
-            }
-            proxy_type = proxy_types.get(proxy_scheme)
-            if not proxy_type or not parsed_proxy.hostname or not parsed_proxy.port:
-                print('[Collector] Invalid RUSSIA_PROXY; use socks5:// or http://host:port')
-                return None
-            sock = socks.create_connection(
-                (clean_host, int(port)),
-                proxy_type=proxy_type,
-                proxy_addr=parsed_proxy.hostname,
-                proxy_port=parsed_proxy.port,
-                proxy_username=parsed_proxy.username,
-                proxy_password=parsed_proxy.password,
-                timeout=timeout,
-            )
-        else:
-            sock = socket.create_connection((clean_host, int(port)), timeout=timeout)
+        sock = socket.create_connection((clean_host, int(port)), timeout=timeout)
         if is_tls or (port in [443, 8443, 2053, 2083, 2087, 2096] and sni):
             server_name = sni or clean_host
             try:

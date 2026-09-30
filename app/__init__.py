@@ -166,9 +166,6 @@ def create_app():
     flask_app.config['AFFILIATE_COMMISSION_PERCENT'] = os.getenv('AFFILIATE_COMMISSION_PERCENT', '75')
     flask_app.config['MIN_WITHDRAWAL_AMOUNT'] = os.getenv('MIN_WITHDRAWAL_AMOUNT', '100')
     flask_app.config['WEBHOOK_URL'] = os.getenv('WEBHOOK_URL', 'http://localhost:5001')
-    # Optional Russian egress proxy for connectivity checks. This does not
-    # expose or use the proxy in generated client links.
-    flask_app.config['RUSSIA_PROXY'] = os.getenv('RUSSIA_PROXY', '')
     flask_app.config['BOT_USERNAME'] = os.getenv('BOT_USERNAME', '')
 
     db.init_app(flask_app)
