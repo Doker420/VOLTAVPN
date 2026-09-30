@@ -14,7 +14,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark navbar-glass sticky-top py-3">
         <div class="container">
             <a class="navbar-brand brand-gradient d-flex align-items-center gap-2" href="/">
-                <i class="bi bi-lightning-charge-fill text-volt"></i> VOLTA
+                <i class="bi bi-lightning-charge-fill text-volt"></i> VoltaVPN
             </a>
             <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -22,17 +22,20 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto ms-lg-4 gap-lg-2">
                     <li class="nav-item">
-                        <a class="nav-link nav-link-anim" href="/">Главная</a>
+                        <a class="nav-link nav-link-anim {% if request.path == '/' %}active{% endif %}" href="/">Главная</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link nav-link-anim" href="/#pricing">Тарифы</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link nav-link-anim" href="/#guides">Приложения</a>
+                        <a class="nav-link nav-link-anim {% if request.path == '/instructions' %}active{% endif %}" href="/instructions">Инструкции</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-anim {% if request.path == '/faq' %}active{% endif %}" href="/faq">FAQ</a>
                     </li>
                     {% if current_user.is_authenticated %}
                     <li class="nav-item">
-                        <a class="nav-link nav-link-anim" href="/dashboard">Мой VPN</a>
+                        <a class="nav-link nav-link-anim {% if request.path == '/dashboard' %}active{% endif %}" href="/dashboard">Мой VPN</a>
                     </li>
                     {% endif %}
                     {% if current_user.is_authenticated and current_user.is_admin %}
@@ -82,15 +85,54 @@
     </main>
 
     <!-- Footer -->
-    <footer class="py-4 mt-5 border-top border-glass">
-        <div class="container text-center text-white-50">
-            <div class="d-flex justify-content-center align-items-center gap-2 mb-2">
-                <span class="brand-gradient fs-5 fw-bold">VOLTA</span>
-                <span>— молниеносный VPN с автообновлением серверов</span>
+    <footer class="py-5 mt-5 border-top border-glass bg-dark" style="background: rgba(10, 15, 29, 0.95) !important;">
+        <div class="container">
+            <div class="row g-4 justify-content-between align-items-center mb-4">
+                <div class="col-lg-4 text-center text-lg-start">
+                    <div class="d-flex align-items-center justify-content-center justify-content-lg-start gap-2 mb-2">
+                        <i class="bi bi-lightning-charge-fill text-volt fs-4"></i>
+                        <span class="brand-gradient fs-4 fw-bold">VoltaVPN</span>
+                    </div>
+                    <p class="small text-white-50 mb-3">
+                        Автоматические проверенные конфигурации VLESS Reality, Trojan, Shadowsocks, Hysteria2. Автопроверка пинга и обновление каждый час.
+                    </p>
+                    <div class="d-flex gap-2 justify-content-center justify-content-lg-start text-white-50 small">
+                        <span><i class="bi bi-shield-check text-emerald me-1"></i> No-Logs</span>
+                        <span>·</span>
+                        <span><i class="bi bi-speedometer2 text-volt me-1"></i> До 10 Гбит/с</span>
+                        <span>·</span>
+                        <span><i class="bi bi-gift text-warning me-1"></i> 3 дня Free</span>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 text-center">
+                    <h6 class="text-white fw-bold mb-3">Навигация и помощь</h6>
+                    <div class="d-flex flex-wrap justify-content-center gap-3 small">
+                        <a href="/" class="text-white-50 text-decoration-none hover-volt">Главная</a>
+                        <a href="/#pricing" class="text-white-50 text-decoration-none hover-volt">Тарифы</a>
+                        <a href="/instructions" class="text-white-50 text-decoration-none hover-volt">Инструкции</a>
+                        <a href="/faq" class="text-white-50 text-decoration-none hover-volt">FAQ</a>
+                        <a href="/terms" class="text-white-50 text-decoration-none hover-volt">Пользовательское соглашение</a>
+                        <a href="/privacy" class="text-white-50 text-decoration-none hover-volt">Политика конфиденциальности</a>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 text-center text-lg-end">
+                    <h6 class="text-white fw-bold mb-3">Принимаем к оплате</h6>
+                    <div class="d-flex flex-wrap justify-content-center justify-content-lg-end gap-2 mb-3">
+                        <span class="badge bg-dark border border-glass px-2 py-1"><i class="bi bi-credit-card text-success me-1"></i> МИР</span>
+                        <span class="badge bg-dark border border-glass px-2 py-1"><i class="bi bi-qr-code text-primary me-1"></i> СБП</span>
+                        <span class="badge bg-dark border border-glass px-2 py-1"><i class="bi bi-wallet2 text-warning me-1"></i> ЮMoney</span>
+                        <span class="badge bg-dark border border-glass px-2 py-1"><i class="bi bi-currency-bitcoin text-warning me-1"></i> Crypto</span>
+                    </div>
+                    <div class="small text-white-50">
+                        Поддержка: <a href="mailto:{{ support_info.email if support_info else 'support@voltavpn.net' }}" class="text-volt text-decoration-none">{{ support_info.email if support_info else 'support@voltavpn.net' }}</a>
+                    </div>
+                </div>
             </div>
-            <p class="small mb-2 opacity-75">VLESS Reality · Trojan · Shadowsocks · Hysteria2 · Автопроверка пинга каждый час</p>
-            <div class="small text-white-50">
-                Email поддержки: <a href="mailto:{{ support_info.email if support_info else 'support@voltavpn.net' }}" class="text-volt text-decoration-none">{{ support_info.email if support_info else 'support@voltavpn.net' }}</a>
+
+            <div class="border-top border-glass pt-3 text-center text-white-50 small opacity-75">
+                © 2026 VoltaVPN. Все права защищены. Сервис не собирает и не хранит логи пользователей.
             </div>
         </div>
     </footer>
@@ -189,6 +231,9 @@
                                 <div class="mb-4">
                                     <label class="form-label text-white-50 small">Повторите пароль</label>
                                     <input type="password" name="confirm_password" class="form-control copy-field text-white px-3 py-2" placeholder="••••••••">
+                                </div>
+                                <div class="form-text text-white-50 small mb-3">
+                                    Нажимая кнопку регистрации, вы принимаете <a href="/terms" target="_blank" class="text-volt text-decoration-none">Пользовательское соглашение</a> и <a href="/privacy" target="_blank" class="text-volt text-decoration-none">Политику конфиденциальности</a>.
                                 </div>
                                 <button type="submit" class="btn btn-glow-emerald w-100 py-3">
                                     <i class="bi bi-lightning-charge-fill me-1"></i> Зарегистрироваться (3 дня бесплатно)

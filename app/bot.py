@@ -76,8 +76,9 @@ def get_main_keyboard(is_admin=False):
     keyboard = [
         [KeyboardButton("⚡ Подключиться"), KeyboardButton("👤 Моя подписка")],
         [KeyboardButton("💳 Купить / Продлить"), KeyboardButton("📥 QR / Ссылка")],
-        [KeyboardButton("🎁 Пригласить друзей"), KeyboardButton("📊 Статус")],
-        [KeyboardButton("❓ Инструкция"), KeyboardButton("💬 Поддержка")],
+        [KeyboardButton("📖 Инструкция"), KeyboardButton("❓ Частые вопросы")],
+        [KeyboardButton("🎁 Пригласить друзей"), KeyboardButton("💬 Поддержка")],
+        [KeyboardButton("📜 Соглашение & No-Logs"), KeyboardButton("📊 Статус")],
     ]
     if is_admin:
         keyboard.append([KeyboardButton("🛠 Админ-панель"), KeyboardButton("📩 Чаты поддержки")])
@@ -619,18 +620,237 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode='HTML')
 
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def instructions_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Detailed multi-platform connection guide with interactive inline menus.
+    """
+    user = update.effective_user
+    db_user, sub = get_or_create_user(user, auto_trial=True)
+    web_instructions_url = f"{base_url()}/instructions"
+
+    keyboard = [
+        [
+            InlineKeyboardButton("📱 iPhone / iPad (iOS)", callback_data="guide_ios"),
+            InlineKeyboardButton("🤖 Android", callback_data="guide_android"),
+        ],
+        [
+            InlineKeyboardButton("💻 Windows", callback_data="guide_windows"),
+            InlineKeyboardButton("🍏 macOS", callback_data="guide_mac"),
+        ],
+        [
+            InlineKeyboardButton("📺 Android TV / Роутеры", callback_data="guide_tv"),
+        ],
+        [
+            InlineKeyboardButton("🌐 Полная иллюстрированная инструкция на сайте", url=web_instructions_url),
+        ],
+    ]
+
     msg = (
-        "📖 <b>Инструкция по подключению:</b>\n\n"
-        "1️⃣ <b>Скопируйте вашу ссылку подписки</b> через меню «⚡ Подключиться» или «📥 QR / Ссылка».\n"
-        "2️⃣ <b>Установите приложение для вашего устройства:</b>\n"
-        "   • <b>iOS / iPhone:</b> Karing или Streisand\n"
-        "   • <b>Android:</b> Karing или v2rayNG\n"
-        "   • <b>Windows:</b> v2rayN или Hiddify\n"
-        "3️⃣ <b>Добавьте подписку:</b> вставьте вашу ссылку или отсканируйте QR-код.\n"
-        "4️⃣ <b>Нажмите «Обновить подписку»</b> и выберите самый быстрый сервер!"
+        "📖 <b>Инструкции по настройке VoltaVPN:</b>\n\n"
+        "Выберите вашу платформу ниже, чтобы получить пошаговую инструкцию с ссылками на скачивание и кнопками быстрого импорта:"
     )
-    await update.message.reply_text(msg, parse_mode='HTML')
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await update.message.reply_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def guide_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    user = update.effective_user
+    db_user, sub = get_or_create_user(user, auto_trial=True)
+
+    link = sub_link(sub) if sub else f"{base_url()}/sub/public"
+    from urllib.parse import quote
+    enc = quote(link, safe='')
+    name = quote('VoltaVPN', safe='')
+
+    back_btn = InlineKeyboardButton("« Назад к выбору устройства", callback_data="guide_main")
+
+    if data == "guide_ios":
+        text = (
+            "📱 <b>Инструкция для iOS (iPhone / iPad):</b>\n\n"
+            "1️⃣ <b>Установите приложение из App Store:</b>\n"
+            "   • Рекомендуем <b>Karing</b> или <b>Streisand</b>.\n\n"
+            "2️⃣ <b>Добавьте подписку:</b>\n"
+            "   • Нажмите кнопку быстрого импорта ниже или скопируйте ссылку.\n\n"
+            "3️⃣ <b>Включите VPN:</b>\n"
+            "   • В приложении нажмите «Подключить» и разрешите добавление VPN-конфигурации.\n\n"
+            f"🔗 <b>Ваша ссылка подписки:</b>\n<code>{esc(link)}</code>"
+        )
+        kb = [
+            [InlineKeyboardButton("⚡ Импорт в Karing (1 клик)", url=f"karing://install-config?url={enc}&name={name}")],
+            [InlineKeyboardButton("📥 Импорт в Streisand", url=f"streisand://import/{enc}")],
+            [InlineKeyboardButton("🍎 Скачать Karing в App Store", url="https://apps.apple.com/app/karing/id6472431552")],
+            [InlineKeyboardButton("🍎 Скачать Streisand в App Store", url="https://apps.apple.com/app/streisand/id6450534064")],
+            [back_btn],
+        ]
+    elif data == "guide_android":
+        text = (
+            "🤖 <b>Инструкция для Android:</b>\n\n"
+            "1️⃣ <b>Установите приложение:</b>\n"
+            "   • <b>v2rayNG</b> (из Google Play или GitHub) или <b>Karing</b>.\n\n"
+            "2️⃣ <b>Добавьте подписку:</b>\n"
+            "   • Нажмите кнопку быстрого импорта ниже.\n\n"
+            "3️⃣ <b>Обновите подписку и подключитесь:</b>\n"
+            "   • Нажмите 3 точки в углу экрана → «Обновить подписку» → выберите сервер и нажмите кнопку подключения.\n\n"
+            f"🔗 <b>Ваша ссылка подписки:</b>\n<code>{esc(link)}</code>"
+        )
+        kb = [
+            [InlineKeyboardButton("⚡ Импорт в v2rayNG (1 клик)", url=f"v2rayng://install-sub?url={enc}&name={name}")],
+            [InlineKeyboardButton("⚡ Импорт в Karing (1 клик)", url=f"karing://install-config?url={enc}&name={name}")],
+            [InlineKeyboardButton("🤖 Скачать v2rayNG (Google Play)", url="https://play.google.com/store/apps/details?id=com.v2ray.ang")],
+            [back_btn],
+        ]
+    elif data == "guide_windows":
+        text = (
+            "💻 <b>Инструкция для Windows (10 / 11):</b>\n\n"
+            "1️⃣ <b>Скачайте Hiddify или v2rayN:</b>\n"
+            "   • Hiddify — самый удобный современный клиент с русским интерфейсом.\n\n"
+            "2️⃣ <b>Добавьте подписку:</b>\n"
+            "   • В Hiddify нажмите «+ Новый профиль» → «Добавить из буфера».\n\n"
+            "3️⃣ <b>Включите режим VPN (TUN):</b>\n"
+            "   • Нажмите кнопку «Подключить» в центре экрана.\n\n"
+            f"🔗 <b>Ваша ссылка подписки:</b>\n<code>{esc(link)}</code>"
+        )
+        kb = [
+            [InlineKeyboardButton("🛡 Открыть в Hiddify", url=f"hiddify://import/{enc}#{name}")],
+            [InlineKeyboardButton("💻 Скачать Hiddify (GitHub)", url="https://github.com/hiddify/hiddify-next/releases")],
+            [InlineKeyboardButton("💻 Скачать v2rayN (GitHub)", url="https://github.com/2dust/v2rayN/releases")],
+            [back_btn],
+        ]
+    elif data == "guide_mac":
+        text = (
+            "🍏 <b>Инструкция для macOS:</b>\n\n"
+            "1️⃣ <b>Установите Streisand или Hiddify:</b>\n"
+            "   • Streisand доступен прямо в Mac App Store.\n\n"
+            "2️⃣ <b>Добавьте подписку:</b>\n"
+            "   • В приложении нажмите «+» → «Add Subscription» и вставьте ссылку.\n\n"
+            f"🔗 <b>Ваша ссылка подписки:</b>\n<code>{esc(link)}</code>"
+        )
+        kb = [
+            [InlineKeyboardButton("🍏 Скачать Streisand (Mac App Store)", url="https://apps.apple.com/app/streisand/id6450534064")],
+            [InlineKeyboardButton("💻 Скачать Hiddify DMG", url="https://github.com/hiddify/hiddify-next/releases")],
+            [back_btn],
+        ]
+    else:  # guide_tv
+        text = (
+            "📺 <b>Инструкция для Android TV и Роутеров:</b>\n\n"
+            "• <b>Android TV:</b> Установите v2rayNG или Hiddify из магазина ТВ и отсканируйте QR-код вашей подписки.\n"
+            "• <b>Роутеры Keenetic / OpenWrt:</b> Поддерживаются протоколы VLESS Reality и Shadowsocks-2022.\n\n"
+            "💬 Напишите нам в поддержку, если нужна помощь с настройкой роутера!"
+        )
+        kb = [
+            [InlineKeyboardButton("📥 Получить QR-код для ТВ", callback_data="get_qr")],
+            [InlineKeyboardButton("💬 Написать в поддержку", url="https://t.me/voltavpn_support")],
+            [back_btn],
+        ]
+
+    await query.edit_message_text(text, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(kb))
+
+
+async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    FAQ menu in Telegram bot.
+    """
+    web_faq_url = f"{base_url()}/faq"
+    keyboard = [
+        [
+            InlineKeyboardButton("🛡️ No-Logs & Безопасность", callback_data="faq_sec"),
+            InlineKeyboardButton("💳 Оплата & Возврат", callback_data="faq_pay"),
+        ],
+        [
+            InlineKeyboardButton("⚡ Скорость & YouTube 4K", callback_data="faq_speed"),
+            InlineKeyboardButton("🔄 Автообновление серверов", callback_data="faq_update"),
+        ],
+        [
+            InlineKeyboardButton("🌐 Открыть полную базу знаний FAQ на сайте", url=web_faq_url),
+        ],
+    ]
+
+    msg = (
+        "❓ <b>Часто задаваемые вопросы (FAQ) VoltaVPN:</b>\n\n"
+        "Выберите интересующий вас раздел или перейдите на страницу базы знаний:"
+    )
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await update.message.reply_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def faq_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    back_btn = InlineKeyboardButton("« Назад к разделам FAQ", callback_data="faq_main")
+
+    if data == "faq_sec":
+        text = (
+            "🛡️ <b>Безопасность и политика No-Logs:</b>\n\n"
+            "• <b>Ведутся ли логи?</b> Категорически нет! Мы не отслеживаем и не храним историю сайтов, DNS-запросы и IP-адреса.\n"
+            "• <b>Почему VLESS Reality не блокируется?</b> Трафик маскируется под обычный защищенный HTTPS-трафик крупных ресурсов (Apple, Microsoft), исключая блокировку провайдерами и ТСПУ."
+        )
+    elif data == "faq_pay":
+        text = (
+            "💳 <b>Оплата и возврат средств:</b>\n\n"
+            "• <b>Как оплатить?</b> Банковские карты РФ (МИР, Visa, MC), СБП, ЮMoney, Криптовалюта.\n"
+            "• <b>Есть ли пробный период?</b> Да, 3 дня бесплатно при регистрации без ввода карты!\n"
+            "• <b>Гарантия возврата:</b> 100% возврат средств в течение 14 дней, если сервис вам не подошел."
+        )
+    elif data == "faq_speed":
+        text = (
+            "⚡ <b>Скорость и работа сервисов:</b>\n\n"
+            "• <b>YouTube 4K:</b> Серверы подключены к портам до 10 Гбит/с — видео открывается мгновенно без зависаний.\n"
+            "• <b>Лимиты:</b> Безлимитный трафик на всех тарифах без ограничений по скорости.\n"
+            "• <b>Устройства:</b> До 5 устройств одновременно на одну подписку."
+        )
+    else:  # faq_update
+        text = (
+            "🔄 <b>Автообновление серверов:</b>\n\n"
+            "• Наш сервер каждый час тестирует сетевую доступность всех узлов.\n"
+            "• Ваше приложение автоматически обновляет список серверов в фоновом режиме (заголовок Update-Interval: 1 час).\n"
+            "• Вам не нужно ничего перенастраивать вручную!"
+        )
+
+    kb = [[back_btn]]
+    await query.edit_message_text(text, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(kb))
+
+
+async def terms_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Terms of service and Privacy Policy in Telegram bot.
+    """
+    web_terms_url = f"{base_url()}/terms"
+    web_privacy_url = f"{base_url()}/privacy"
+
+    keyboard = [
+        [
+            InlineKeyboardButton("📜 Пользовательское соглашение", url=web_terms_url),
+            InlineKeyboardButton("🔒 Политика конфиденциальности", url=web_privacy_url),
+        ],
+        [
+            InlineKeyboardButton("💬 Связаться с поддержкой", callback_data="buy_menu"),
+        ]
+    ]
+
+    msg = (
+        "📜 <b>Пользовательское соглашение и No-Logs политика VoltaVPN:</b>\n\n"
+        "1️⃣ <b>100% No-Logs:</b> Мы никогда не логируем вашу сетевую активность, трафик и историю посещений.\n"
+        "2️⃣ <b>Гарантия возврата:</b> Полный возврат средств в течение 14 дней по первому запросу.\n"
+        "3️⃣ <b>Прозрачные условия:</b> 3 дня бесплатного тестового периода без привязки карт.\n"
+        "4️⃣ <b>Безопасные платежи:</b> Все платежи обрабатываются через защищенные шлюзы (ЮMoney, СБП, Банковские карты РФ, CryptoBot) по стандарту PCI DSS.\n\n"
+        "Ознакомьтесь с полными текстами документов по кнопкам ниже:"
+    )
+    await update.message.reply_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await instructions_command(update, context)
 
 
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -714,8 +934,12 @@ async def handle_text_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         await invite_command(update, context)
     elif text == "📊 Статус":
         await stats_command(update, context)
-    elif text == "❓ Инструкция":
-        await help_command(update, context)
+    elif text in ["📖 Инструкция", "❓ Инструкция", "Инструкция"]:
+        await instructions_command(update, context)
+    elif text in ["❓ Частые вопросы", "FAQ", "Частые вопросы"]:
+        await faq_command(update, context)
+    elif text in ["📜 Соглашение & No-Logs", "📜 Соглашение", "Политика конфиденциальности", "Оферта"]:
+        await terms_command(update, context)
     elif text == "💬 Поддержка":
         await support_command(update, context)
     elif text == "🛠 Админ-панель":
@@ -742,11 +966,21 @@ def init_bot(app):
     bot_app.add_handler(CommandHandler("stats", stats_command))
     bot_app.add_handler(CommandHandler("admin", admin_command))
     bot_app.add_handler(CommandHandler("help", help_command))
+    bot_app.add_handler(CommandHandler("instructions", instructions_command))
+    bot_app.add_handler(CommandHandler("guide", instructions_command))
+    bot_app.add_handler(CommandHandler("faq", faq_command))
+    bot_app.add_handler(CommandHandler("terms", terms_command))
+    bot_app.add_handler(CommandHandler("privacy", terms_command))
+    bot_app.add_handler(CommandHandler("rules", terms_command))
     bot_app.add_handler(CommandHandler("support", support_command))
     bot_app.add_handler(CommandHandler("reply", reply_support_command))
     bot_app.add_handler(CommandHandler("r", reply_support_command))
     bot_app.add_handler(CommandHandler("chats", chats_support_command))
 
+    bot_app.add_handler(CallbackQueryHandler(instructions_command, pattern=r"^guide_main$"))
+    bot_app.add_handler(CallbackQueryHandler(guide_callback, pattern=r"^guide_"))
+    bot_app.add_handler(CallbackQueryHandler(faq_command, pattern=r"^faq_main$"))
+    bot_app.add_handler(CallbackQueryHandler(faq_callback, pattern=r"^faq_"))
     bot_app.add_handler(CallbackQueryHandler(plan_callback, pattern=r"^(plan_|buy_menu|get_qr)"))
     bot_app.add_handler(CallbackQueryHandler(payment_callback, pattern=r"^pay_"))
     bot_app.add_handler(CallbackQueryHandler(check_pay_callback, pattern=r"^checkpay_"))

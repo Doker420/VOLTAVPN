@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5 my-md-4">
+    <!-- Header -->
+    <div class="text-center mb-5" style="max-width: 760px; margin: 0 auto;">
+        <div class="badge-neon-indigo mb-3">
+            <i class="bi bi-patch-question me-1"></i> База знаний
+        </div>
+        <h1 class="hero-title text-white">Часто задаваемые вопросы (FAQ)</h1>
+        <p class="text-white-50 fs-5 leading-relaxed">
+            Ответы на популярные вопросы о работе VoltaVPN, протоколах, оплате и настройке на любых устройствах.
+        </p>
+
+        <!-- Search Bar -->
+        <div class="mt-4" style="max-width: 540px; margin: 0 auto;">
+            <div class="input-group input-group-lg">
+                <span class="input-group-text bg-dark border-glass text-volt"><i class="bi bi-search"></i></span>
+                <input type="text" id="faqSearch" class="form-control bg-dark text-white border-glass" placeholder="Поиск по вопросам (например: оплата, YouTube, iOS)..." onkeyup="filterFaq()">
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Filter Buttons -->
+    <div class="d-flex justify-content-center gap-2 mb-5 flex-wrap" id="categoryButtons">
+        <button class="btn btn-glow-volt btn-sm px-3 cat-btn active" onclick="filterCategory('all', this)">Все вопросы</button>
+        <button class="btn btn-glass-secondary btn-sm px-3 cat-btn" onclick="filterCategory('security', this)">🛡️ Безопасность и No-Logs</button>
+        <button class="btn btn-glass-secondary btn-sm px-3 cat-btn" onclick="filterCategory('setup', this)">📱 Настройка и клиенты</button>
+        <button class="btn btn-glass-secondary btn-sm px-3 cat-btn" onclick="filterCategory('billing', this)">💳 Оплата и подписка</button>
+        <button class="btn btn-glass-secondary btn-sm px-3 cat-btn" onclick="filterCategory('speed', this)">⚡ Скорость и YouTube</button>
+        <button class="btn btn-glass-secondary btn-sm px-3 cat-btn" onclick="filterCategory('troubleshoot', this)">🔧 Решение проблем</button>
+    </div>
+
+    <!-- Accordion List -->
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="accordion accordion-flush d-flex flex-column gap-3" id="faqAccordion">
+                
+                <!-- 1. Security -->
+                <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden faq-item" data-category="security">
+                    <h2 class="accordion-header" id="headingOne">
+                        <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">
+                            <i class="bi bi-shield-check text-emerald me-3 fs-5"></i>
+                            Ведет ли VoltaVPN логи сетевой активности?
+                        </button>
+                    </h2>
+                    <div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body px-4 pb-4 pt-1 text-white-50 leading-relaxed border-top border-glass">
+                            <strong>Категорически нет.</strong> Мы придерживаемся строгой политики <em>No-Logs</em>. На серверах VoltaVPN полностью отключено ведение журналов подключений, DNS-запросов, истории посещенных сайтов и передаваемого трафика. Подробнее описано в нашей <a href="/privacy" class="text-volt">Политике конфиденциальности</a>.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden faq-item" data-category="security">
+                    <h2 class="accordion-header" id="headingTwo">
+                        <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo">
+                            <i class="bi bi-cpu text-indigo me-3 fs-5"></i>
+                            Что такое VLESS Reality и почему его не блокируют?
+                        </button>
+                    </h2>
+                    <div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body px-4 pb-4 pt-1 text-white-50 leading-relaxed border-top border-glass">
+                            <strong>VLESS Reality</strong> — это протокол маскировки трафика нового поколения. В отличие от устаревших OpenVPN, WireGuard и IPsec, Reality маскирует VPN-соединение под легитимный HTTPS-трафик крупных защищенных сайтов (например, Apple, Microsoft, Cloudflare). Системы глубокого анализа пакетов (ТСПУ / DPI) не могут отличить такое соединение от обычного серфинга в браузере.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Setup -->
+                <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden faq-item" data-category="setup">
+                    <h2 class="accordion-header" id="headingThree">
+                        <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree">
+                            <i class="bi bi-phone text-volt me-3 fs-5"></i>
+                            Какое приложение лучше установить на телефон и компьютер?
+                        </button>
+                    </h2>
+                    <div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body px-4 pb-4 pt-1 text-white-50 leading-relaxed border-top border-glass">
+                            Мы рекомендуем проверенные клиенты:
+                            <ul class="mt-2 mb-2">
+                                <li><strong>iOS (iPhone / iPad):</strong> <a href="https://apps.apple.com/app/karing/id6472431552" target="_blank" class="text-volt">Karing</a> или <a href="https://apps.apple.com/app/streisand/id6450534064" target="_blank" class="text-volt">Streisand</a>.</li>
+                                <li><strong>Android:</strong> <a href="https://play.google.com/store/apps/details?id=com.v2ray.ang" target="_blank" class="text-volt">v2rayNG</a> или <strong>Karing</strong>.</li>
+                                <li><strong>Windows:</strong> <strong>Hiddify</strong> или <strong>v2rayN</strong>.</li>
+                                <li><strong>macOS:</strong> <strong>Streisand</strong> или <strong>Hiddify</strong>.</li>
+                            </ul>
+                            Подробные пошаговые инструкции со скриншотами смотрите на странице <a href="/instructions" class="text-volt">Инструкции по подключению</a>.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden faq-item" data-category="setup">
+                    <h2 class="accordion-header" id="headingFour">
+                        <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour">
+                            <i class="bi bi-arrow-repeat text-emerald me-3 fs-5"></i>
+                            Как работает автообновление серверов в подписке?
+                        </button>
+                    </h2>
+                    <div id="collapseFour" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body px-4 pb-4 pt-1 text-white-50 leading-relaxed border-top border-glass">
+                            В ссылку подписки VoltaVPN встроены заголовки <code>Profile-Update-Interval: 1</code> (обновление каждый час). Наш сервер каждый час тестирует сетевую доступность всех узлов, отсеивает нерабочие и добавляет новые серверы. Ваше приложение автоматически скачивает свежий список серверов в фоновом режиме, поэтому вам не нужно вручную менять настройки.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Billing -->
+                <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden faq-item" data-category="billing">
+                    <h2 class="accordion-header" id="headingFive">
+                        <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFive">
+                            <i class="bi bi-credit-card text-success me-3 fs-5"></i>
+                            Какие способы оплаты поддерживаются?
+                        </button>
+                    </h2>
+                    <div id="collapseFive" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body px-4 pb-4 pt-1 text-white-50 leading-relaxed border-top border-glass">
+                            Мы принимаем:
+                            <ul class="mt-2 mb-2">
+                                <li><strong>Банковские карты РФ</strong> (МИР, Visa, Mastercard, Tinkoff, Сбер);</li>
+                                <li><strong>СБП</strong> (Система быстрых платежей по QR-коду);</li>
+                                <li><strong>ЮMoney</strong> (кошелек и банковские переводы);</li>
+                                <li><strong>Криптовалюту</strong> (USDT, TON, BTC, CryptoBot).</li>
+                            </ul>
+                            Подписка активируется моментально в автоматическом режиме сразу после подтверждения транзакции.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden faq-item" data-category="billing">
+                    <h2 class="accordion-header" id="headingSix">
+                        <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSix">
+                            <i class="bi bi-gift text-warning me-3 fs-5"></i>
+                            Как получить 3 дня бесплатного доступа?
+                        </button>
+                    </h2>
+                    <div id="collapseSix" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body px-4 pb-4 pt-1 text-white-50 leading-relaxed border-top border-glass">
+                            Просто зарегистрируйтесь на сайте или запустите нашего Telegram-бота. <strong>3 дня пробного периода начисляются мгновенно</strong>. Привязка карты или ввод платежных реквизитов не требуется.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden faq-item" data-category="billing">
+                    <h2 class="accordion-header" id="headingSeven">
+                        <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSeven">
+                            <i class="bi bi-arrow-counterclockwise text-danger me-3 fs-5"></i>
+                            Есть ли гарантия возврата денег (Refund)?
+                        </button>
+                    </h2>
+                    <div id="collapseSeven" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body px-4 pb-4 pt-1 text-white-50 leading-relaxed border-top border-glass">
+                            Да! Если в течение <strong>14 дней</strong> после оплаты у вас возникнут сложности или сервис вам не подойдет, напишите нам в чат поддержки — мы вернем 100% оплаченной суммы без лишних вопросов.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Speed & YouTube -->
+                <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden faq-item" data-category="speed">
+                    <h2 class="accordion-header" id="headingEight">
+                        <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEight">
+                            <i class="bi bi-youtube text-danger me-3 fs-5"></i>
+                            Работает ли YouTube в 4K и Instagram без задержек?
+                        </button>
+                    </h2>
+                    <div id="collapseEight" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body px-4 pb-4 pt-1 text-white-50 leading-relaxed border-top border-glass">
+                            Да, все серверы VoltaVPN подключены к гигабитным каналам (до 10 Гбит/с) и оптимизированы для передачи потокового видео высокой четкости. YouTube 4K 60FPS воспроизводится без буферизации, а социальные сети (Instagram, Twitter/X, Discord) открываются мгновенно.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden faq-item" data-category="speed">
+                    <h2 class="accordion-header" id="headingNine">
+                        <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNine">
+                            <i class="bi bi-laptop text-info me-3 fs-5"></i>
+                            Сколько устройств можно подключить на одну подписку?
+                        </button>
+                    </h2>
+                    <div id="collapseNine" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body px-4 pb-4 pt-1 text-white-50 leading-relaxed border-top border-glass">
+                            Вы можете подключить <strong>до 5 устройств одновременно</strong> по одной подписке (например: смартфон, планшет, рабочий ноутбук, домашний ПК и телевизор).
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Troubleshoot -->
+                <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden faq-item" data-category="troubleshoot">
+                    <h2 class="accordion-header" id="headingTen">
+                        <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTen">
+                            <i class="bi bi-question-diamond text-warning me-3 fs-5"></i>
+                            Что делать, если пропал интернет при включенном VPN?
+                        </button>
+                    </h2>
+                    <div id="collapseTen" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body px-4 pb-4 pt-1 text-white-50 leading-relaxed border-top border-glass">
+                            Рекомендуем выполнить следующие шаги:
+                            <ol class="mt-2 mb-2">
+                                <li>В приложении нажмите <strong>«Обновить подписку»</strong> (Update Subscription).</li>
+                                <li>Выберите другой сервер из списка (например, Финляндию, Нидерланды или Швецию).</li>
+                                <li>Переключите тип сети с Wi-Fi на мобильный интернет или наоборот.</li>
+                                <li>Если проблема сохраняется, напишите нам в круглосуточный чат поддержки — мы поможем за 2 минуты!</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact Support Box -->
+    <div class="card-glass p-4 p-md-5 text-center mt-5 bg-dark border-volt" style="max-width: 820px; margin: 0 auto;">
+        <div class="fs-1 text-volt mb-2"><i class="bi bi-chat-quote-fill"></i></div>
+        <h4 class="fw-bold text-white mb-2">Не нашли ответ на свой вопрос?</h4>
+        <p class="text-white-50 mb-4" style="max-width: 600px; margin: 0 auto;">
+            Напишите нам в чат техподдержки прямо сейчас — специалист ответит на любой технический или организационный вопрос.
+        </p>
+        <div class="d-flex justify-content-center gap-3 flex-wrap">
+            <button class="btn btn-glow-volt px-4 py-2" onclick="openSupportChat()">
+                <i class="bi bi-chat-left-dots-fill me-1"></i> Открыть чат поддержки
+            </button>
+            <a href="{{ support_info.telegram_link if support_info else 'https://t.me/volta_vpn_bot' }}" target="_blank" class="btn btn-glass-secondary px-4 py-2">
+                <i class="bi bi-telegram me-1"></i> Написать в Telegram
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterFaq() {
+    const query = document.getElementById('faqSearch').value.toLowerCase().trim();
+    const items = document.querySelectorAll('.faq-item');
+    items.forEach(item => {
+        const text = item.innerText.toLowerCase();
+        if (!query || text.includes(query)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function filterCategory(cat, btn) {
+    document.querySelectorAll('.cat-btn').forEach(b => {
+        b.classList.remove('btn-glow-volt', 'active');
+        b.classList.add('btn-glass-secondary');
+    });
+    btn.classList.add('btn-glow-volt', 'active');
+    btn.classList.remove('btn-glass-secondary');
+
+    const items = document.querySelectorAll('.faq-item');
+    items.forEach(item => {
+        if (cat === 'all' || item.dataset.category === cat) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

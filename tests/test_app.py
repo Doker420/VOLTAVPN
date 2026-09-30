@@ -340,3 +340,35 @@ trojan://pass1234@nl3.volta-node.net:443?security=tls#VOLTA-NL-Batch2
     with app.app_context():
         assert Config.query.filter_by(host='de3.volta-node.net').first() is not None
         assert Config.query.filter_by(host='nl3.volta-node.net').first() is not None
+
+
+def test_legal_and_knowledge_base_pages(client, app):
+    """
+    Test Privacy Policy (/privacy), Terms of Service (/terms),
+    Connection Instructions (/instructions), and Knowledge Base / FAQ (/faq).
+    """
+    # 1. Privacy Policy
+    resp_privacy = client.get('/privacy')
+    assert resp_privacy.status_code == 200
+    assert 'Политика конфиденциальности'.encode('utf-8') in resp_privacy.data
+    assert 'No-Logs'.encode('utf-8') in resp_privacy.data
+
+    # 2. Terms of Service
+    resp_terms = client.get('/terms')
+    assert resp_terms.status_code == 200
+    assert 'Пользовательское соглашение'.encode('utf-8') in resp_terms.data
+    assert 'оферт'.encode('utf-8') in resp_terms.data
+
+    # 3. Connection Instructions
+    resp_instructions = client.get('/instructions')
+    assert resp_instructions.status_code == 200
+    assert 'Инструкция по подключению'.encode('utf-8') in resp_instructions.data
+    assert 'Karing'.encode('utf-8') in resp_instructions.data
+    assert 'v2rayNG'.encode('utf-8') in resp_instructions.data
+
+    # 4. FAQ / Knowledge base
+    resp_faq = client.get('/faq')
+    assert resp_faq.status_code == 200
+    assert 'Часто задаваемые вопросы'.encode('utf-8') in resp_faq.data
+    assert 'VLESS Reality'.encode('utf-8') in resp_faq.data
+

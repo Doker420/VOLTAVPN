@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5 my-md-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-9">
+            
+            <!-- Breadcrumbs -->
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/" class="text-volt text-decoration-none">Главная</a></li>
+                    <li class="breadcrumb-item active text-white-50" aria-current="page">Политика конфиденциальности</li>
+                </ol>
+            </nav>
+
+            <div class="card-glass p-4 p-md-5">
+                <div class="d-flex align-items-center gap-3 mb-4 border-bottom border-glass pb-4">
+                    <div class="rounded-circle p-3 bg-emerald-50 text-emerald fs-2 d-flex align-items-center justify-content-center" style="width: 64px; height: 64px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3);">
+                        <i class="bi bi-shield-check"></i>
+                    </div>
+                    <div>
+                        <span class="badge badge-neon-emerald mb-1">Строгая No-Logs политика</span>
+                        <h1 class="h2 fw-bold text-white mb-0">Политика конфиденциальности VoltaVPN</h1>
+                        <small class="text-white-50">Дата последнего обновления: 30 сентября 2026 г.</small>
+                    </div>
+                </div>
+
+                <div class="legal-content text-white-50 leading-relaxed fs-6">
+                    <div class="alert alert-dark border-glass text-white mb-4 p-3 rounded-4" style="background: rgba(255, 255, 255, 0.03);">
+                        <div class="d-flex align-items-center gap-2 mb-1 text-emerald fw-bold">
+                            <i class="bi bi-lock-fill"></i> Наш главный принцип: Мы не знаем и не хотим знать, что вы делаете в сети
+                        </div>
+                        <p class="mb-0 small text-white-50">
+                            Сервис VoltaVPN разработан для защиты вашей конфиденциальности и свободы в сети Интернет. Мы не отслеживаем, не регистрируем и не храним ваши онлайн-действия, историю браузера, переданные файлы или DNS-запросы.
+                        </p>
+                    </div>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">1. Политика отсутствия логов (No-Logs Policy)</h4>
+                    <p>
+                        VoltaVPN категорически не регистрирует и не собирает следующую информацию:
+                    </p>
+                    <ul class="list-unstyled d-flex flex-column gap-2 ms-2">
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-x-circle text-danger mt-1"></i>
+                            <span><strong>История посещений:</strong> мы не ведем учет посещаемых вами сайтов, приложений и сервисов.</span>
+                        </li>
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-x-circle text-danger mt-1"></i>
+                            <span><strong>Трафик и передаваемые данные:</strong> мы не перехватываем, не анализируем и не сохраняем содержимое передаваемого трафика.</span>
+                        </li>
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-x-circle text-danger mt-1"></i>
+                            <span><strong>IP-адреса назначения:</strong> мы не фиксируем конечные IP-адреса, к которым вы подключаетесь.</span>
+                        </li>
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-x-circle text-danger mt-1"></i>
+                            <span><strong>DNS-запросы:</strong> все DNS-запросы шифруются и резолвятся локально без сохранения журналов.</span>
+                        </li>
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-x-circle text-danger mt-1"></i>
+                            <span><strong>Временные метки сессий:</strong> мы не связываем время ваших подключений с вашей личностью.</span>
+                        </li>
+                    </ul>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">2. Какие данные мы обрабатываем</h4>
+                    <p>
+                        Для обеспечения работоспособности вашей учетной записи и подписки обрабатывается минимально необходимый объем технических данных:
+                    </p>
+                    <ul>
+                        <li><strong>Данные учетной записи:</strong> выбранное имя пользователя (username) или Telegram ID при авторизации через бота, а также хэш пароля (зашифрованный криптографическим алгоритмом bcrypt).</li>
+                        <li><strong>Параметры подписки:</strong> дата окончания оплаченного периода или бесплатного пробного доступа (3 дня), уникальный токен подписки (`sub_token`).</li>
+                        <li><strong>Анонимная статистика серверов:</strong> общая загрузка серверов и задержка (Ping) для балансировки трафика и автоматического отсеивания неработающих узлов.</li>
+                    </ul>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">3. Обработка платежей и финансовая безопасность</h4>
+                    <p>
+                        Мы не собираем, не обрабатываем и не храним номера банковских карт, CVC/CVV-коды и иные реквизиты платежных средств. Все платежные транзакции осуществляются через защищенные протоколы аккредитованных платежных провайдеров (ЮMoney / Банковские карты РФ / СБП / Platega / CryptoBot), полностью сертифицированных по стандарту безопасности <strong>PCI DSS Level 1</strong>.
+                    </p>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">4. Технологии шифрования и защита каналов</h4>
+                    <p>
+                        Для защиты пользовательского соединения применяются современные протоколы шифрования и маскировки трафика:
+                    </p>
+                    <ul>
+                        <li><strong>VLESS Reality:</strong> прямое TLS-туннелирование с маскировкой под популярные защищенные веб-ресурсы, исключающее обнаружение DPI.</li>
+                        <li><strong>Hysteria 2 / TUIC:</strong> высокоскоростной транспорт на базе протокола UDP/QUIC с защитой от помех и блокировок.</li>
+                        <li><strong>Trojan-TLS / Shadowsocks-2022:</strong> шифрование трафика алгоритмами AES-256-GCM и ChaCha20-Poly1305.</li>
+                    </ul>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">5. Хранение данных и права пользователя</h4>
+                    <p>
+                        В соответствии с законодательством о защите персональных данных (152-ФЗ, GDPR):
+                    </p>
+                    <ul>
+                        <li>Вы имеете право запросить полное удаление своего аккаунта и всей связанной истории обращений в любой момент.</li>
+                        <li>Мы не передаем, не продаем и не раскрываем данные третьим лицам или рекламным сетям.</li>
+                    </ul>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">6. Контакты службы защиты данных</h4>
+                    <p>
+                        По любым вопросам, связанным с настоящей Политикой конфиденциальности или удалением учетной записи, обращайтесь:
+                    </p>
+                    <div class="card-glass p-3 mt-3 bg-dark">
+                        <div class="d-flex flex-wrap gap-4 text-white">
+                            <div><i class="bi bi-envelope-fill text-volt me-2"></i>Email: <a href="mailto:{{ support_info.email if support_info else 'support@voltavpn.net' }}" class="text-volt">{{ support_info.email if support_info else 'support@voltavpn.net' }}</a></div>
+                            <div><i class="bi bi-telegram text-volt me-2"></i>Telegram: <a href="{{ support_info.telegram_link if support_info else 'https://t.me/volta_vpn_bot' }}" target="_blank" class="text-volt">{{ support_info.telegram if support_info else '@volta_vpn_bot' }}</a></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-5 pt-4 border-top border-glass d-flex justify-content-between align-items-center flex-wrap gap-3">
+                    <a href="/terms" class="text-volt text-decoration-none">
+                        <i class="bi bi-file-earmark-text me-1"></i> Перейти к Пользовательскому соглашению
+                    </a>
+                    <a href="/" class="btn btn-glow-volt px-4">
+                        <i class="bi bi-house-door me-1"></i> На главную
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -219,6 +219,15 @@ def admin_required(f):
 
 
 def register_routes(flask_app):
+    @flask_app.context_processor
+    def inject_helpers():
+        from urllib.parse import quote
+        return {
+            'quote': quote,
+            'get_base_url': get_base_url,
+            'support_info': _support_contacts(),
+        }
+
     @flask_app.route('/')
     def index():
         working_count = Config.query.filter_by(is_working=True).count()
@@ -238,6 +247,22 @@ def register_routes(flask_app):
         countries = _country_breakdown()
         support_info = _support_contacts()
         return render_template('index.html', plans=PLANS, stats=stats, countries=countries, support_info=support_info)
+
+    @flask_app.route('/privacy')
+    def privacy():
+        return render_template('privacy.html', support_info=_support_contacts())
+
+    @flask_app.route('/terms')
+    def terms():
+        return render_template('terms.html', support_info=_support_contacts())
+
+    @flask_app.route('/instructions')
+    def instructions():
+        return render_template('instructions.html', support_info=_support_contacts())
+
+    @flask_app.route('/faq')
+    def faq():
+        return render_template('faq.html', support_info=_support_contacts())
 
     @flask_app.route('/register', methods=['POST'])
     def register():

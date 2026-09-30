@@ -78,3 +78,48 @@ def test_bot_admin_support_reply(app):
         all_msgs = SupportMessage.query.filter_by(session_id='sess_100').all()
         assert len(all_msgs) == 2
         assert all_msgs[1].sender_type == 'admin'
+
+
+def test_bot_instructions_and_faq_commands(app):
+    """
+    Test bot instructions, FAQ, and terms command outputs.
+    """
+    import asyncio
+    import app.bot as bot_module
+    bot_module.flask_app = app
+
+    class DummyMessage:
+        def __init__(self):
+            self.replied_text = None
+            self.reply_markup = None
+
+        async def reply_text(self, text, parse_mode=None, reply_markup=None):
+            self.replied_text = text
+            self.reply_markup = reply_markup
+            return self
+
+    class DummyUpdate:
+        def __init__(self, user_id):
+            self.effective_user = DummyTgUser(user_id)
+            self.message = DummyMessage()
+            self.callback_query = None
+
+    async def _run():
+        update = DummyUpdate(99887766)
+        
+        # 1. Instructions command
+        await bot_module.instructions_command(update, None)
+        assert 'Инструкции по настройке VoltaVPN' in update.message.replied_text
+        assert update.message.reply_markup is not None
+
+        # 2. FAQ command
+        await bot_module.faq_command(update, None)
+        assert 'Часто задаваемые вопросы' in update.message.replied_text
+
+        # 3. Terms command
+        await bot_module.terms_command(update, None)
+        assert 'No-Logs' in update.message.replied_text
+        assert 'Пользовательское соглашение' in update.message.replied_text
+
+    asyncio.run(_run())
+

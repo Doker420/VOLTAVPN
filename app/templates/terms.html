@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5 my-md-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-9">
+            
+            <!-- Breadcrumbs -->
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/" class="text-volt text-decoration-none">Главная</a></li>
+                    <li class="breadcrumb-item active text-white-50" aria-current="page">Пользовательское соглашение</li>
+                </ol>
+            </nav>
+
+            <div class="card-glass p-4 p-md-5">
+                <div class="d-flex align-items-center gap-3 mb-4 border-bottom border-glass pb-4">
+                    <div class="rounded-circle p-3 text-volt fs-2 d-flex align-items-center justify-content-center" style="width: 64px; height: 64px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3);">
+                        <i class="bi bi-file-earmark-text"></i>
+                    </div>
+                    <div>
+                        <span class="badge badge-neon-indigo mb-1">Публичная оферта</span>
+                        <h1 class="h2 fw-bold text-white mb-0">Пользовательское соглашение VoltaVPN</h1>
+                        <small class="text-white-50">Редакция от 30 сентября 2026 г.</small>
+                    </div>
+                </div>
+
+                <div class="legal-content text-white-50 leading-relaxed fs-6">
+                    <p>
+                        Настоящий документ представляет собой официальное предложение (публичную оферту) сервиса <strong>VoltaVPN</strong> заключить договор на оказание услуг по предоставлению доступа к защищенным телематическим узлам связи и VPN-инфраструктуре на указанных ниже условиях.
+                    </p>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">1. Термины и определения</h4>
+                    <ul>
+                        <li><strong>Сервис (Исполнитель):</strong> онлайн-сервис VoltaVPN, предоставляющий доступ к узлам связи через специализированные протоколы (VLESS, Trojan, Shadowsocks, Hysteria2).</li>
+                        <li><strong>Пользователь (Заказчик):</strong> дееспособное физическое лицо, принявшее условия настоящего Соглашения путем регистрации на сайте, запуска Telegram-бота или оплаты услуг.</li>
+                        <li><strong>Подписка:</strong> право на получение доступа к динамическому перечню действующих серверов сервиса на определенный оплаченный или тестовый период времени.</li>
+                        <li><strong>Конфигурация (Подписочная ссылка):</strong> персональный URL-адрес или набор настроек, используемый в клиентском ПО для подключения.</li>
+                    </ul>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">2. Бесплатный пробный период (Trial)</h4>
+                    <ul>
+                        <li>Каждому новому зарегистрированному Пользователю предоставляется <strong>3 (три) дня бесплатного тестового доступа</strong> с полным функционалом сервиса.</li>
+                        <li>Для активации пробного периода не требуется ввод платежных данных или привязка банковских карт.</li>
+                        <li>Один Пользователь вправе воспользоваться пробным периодом не более одного раза. Создание мультиаккаунтов с целью злоупотребления пробным периодом запрещено.</li>
+                    </ul>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">3. Порядок оплаты и предоставления услуг</h4>
+                    <ul>
+                        <li>Оплата услуг производится Пользователем на условиях 100% предоплаты в соответствии с действующими тарифами, указанными на сайте и в Telegram-боте.</li>
+                        <li>Оплата принимается следующими способами:
+                            <ul>
+                                <li>Банковские карты РФ (МИР, Visa, MasterCard);</li>
+                                <li>Система быстрых платежей (СБП);</li>
+                                <li>Кошелек ЮMoney (прямой перевод и эквайринг);</li>
+                                <li>Криптовалютные платежи (CryptoBot / USDT / TON / BTC).</li>
+                            </ul>
+                        </li>
+                        <li>Доступ к серверам активируется моментально в автоматическом режиме после подтверждения факта оплаты платежной системой.</li>
+                        <li>В подписку входит неограниченный объем трафика на максимальной доступной скорости канала.</li>
+                    </ul>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">4. Политика возврата денежных средств (Refund Policy)</h4>
+                    <ul>
+                        <li>Пользователь имеет право на <strong>полный возврат средств в течение 14 (четырнадцати) календарных дней</strong> с момента первой оплаты, если сервис не подошел или возникли технические неполадки, которые не удалось устранить службе поддержки.</li>
+                        <li>Для оформления возврата Пользователю достаточно написать в чат онлайн-поддержки на сайте или в Telegram-бот с указанием номера платежа.</li>
+                        <li>Возврат осуществляется тем же способом, которым была произведена оплата.</li>
+                    </ul>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">5. Правила использования и запрещенные действия</h4>
+                    <p>Пользователю категорически запрещается использовать серверы VoltaVPN для:</p>
+                    <ul class="list-unstyled d-flex flex-column gap-2 ms-2">
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-slash-circle text-danger mt-1"></i>
+                            <span>Рассылки нежелательной корреспонденции (СПАМ) и проведения фишинговых атак;</span>
+                        </li>
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-slash-circle text-danger mt-1"></i>
+                            <span>Проведения DDoS-атак, сканирования уязвимостей, подбора паролей и несанкционированного доступа к чужим ресурсам;</span>
+                        </li>
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-slash-circle text-danger mt-1"></i>
+                            <span>Распространения вредоносного программного обеспечения, вирусов и эксплойтов;</span>
+                        </li>
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-slash-circle text-danger mt-1"></i>
+                            <span>Распространения контента, запрещенного международным законодательством и законами юрисдикции местонахождения серверов.</span>
+                        </li>
+                    </ul>
+                    <p class="small text-white-50 mt-2">
+                        В случае выявления противоправных действий Исполнитель оставляет за собой право немедленно прекратить обслуживание учетной записи нарушителя без возврата средств.
+                    </p>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">6. Ограничение ответственности</h4>
+                    <ul>
+                        <li>Сервис предоставляет доступ по принципу «как есть» (as is). Исполнитель не несет ответственности за перебои в работе провайдеров связи Пользователя, ограничения отдельных веб-ресурсов или сбои стороннего клиентского ПО.</li>
+                        <li>Исполнитель обязуется поддерживать непрерывность сервиса (SLA 99.5%) и регулярно обновлять рабочие узлы через автоматический фоновый мониторинг.</li>
+                    </ul>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">7. Срок действия и порядок изменения соглашения</h4>
+                    <ul>
+                        <li>Настоящее Соглашение вступает в силу с момента акцепта (регистрации, оплаты или запуска бота) и действует бессрочно.</li>
+                        <li>Исполнитель вправе вносить изменения в условия Оферты. Актуальная версия всегда публикуется на странице <code>/terms</code>.</li>
+                    </ul>
+
+                    <h4 class="text-white fw-bold mt-4 mb-3">8. Служба поддержки и реквизиты</h4>
+                    <p>
+                        По всем финансовым и техническим вопросам:
+                    </p>
+                    <div class="card-glass p-3 mt-3 bg-dark">
+                        <div class="d-flex flex-wrap gap-4 text-white">
+                            <div><i class="bi bi-envelope-fill text-volt me-2"></i>Email: <a href="mailto:{{ support_info.email if support_info else 'support@voltavpn.net' }}" class="text-volt">{{ support_info.email if support_info else 'support@voltavpn.net' }}</a></div>
+                            <div><i class="bi bi-telegram text-volt me-2"></i>Telegram: <a href="{{ support_info.telegram_link if support_info else 'https://t.me/volta_vpn_bot' }}" target="_blank" class="text-volt">{{ support_info.telegram if support_info else '@volta_vpn_bot' }}</a></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-5 pt-4 border-top border-glass d-flex justify-content-between align-items-center flex-wrap gap-3">
+                    <a href="/privacy" class="text-volt text-decoration-none">
+                        <i class="bi bi-shield-check me-1"></i> Перейти к Политике конфиденциальности
+                    </a>
+                    <a href="/" class="btn btn-glow-volt px-4">
+                        <i class="bi bi-house-door me-1"></i> На главную
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

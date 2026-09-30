@@ -194,35 +194,141 @@
 <section id="guides" class="py-5 my-4">
     <div class="container">
         <div class="text-center mb-5">
-            <h2 class="hero-title fs-2 text-white">Простая настройка за 1 минуту</h2>
-            <p class="text-white-50">Импортируйте персональную ссылку подписки в удобное приложение</p>
+            <div class="badge-neon-emerald mb-2">Настройка за 1 минуту</div>
+            <h2 class="hero-title fs-2 text-white">Поддержка любых устройств</h2>
+            <p class="text-white-50">Импортируйте персональную ссылку подписки в удобное приложение в один клик</p>
         </div>
 
-        <div class="row g-4 justify-content-center">
+        <div class="row g-4 justify-content-center mb-4">
             <div class="col-md-6 col-lg-3">
-                <div class="card-glass p-4 text-center h-100">
-                    <div class="fs-1 text-emerald mb-3"><i class="bi bi-apple"></i></div>
-                    <h5 class="fw-bold text-white">iOS (iPhone / iPad)</h5>
-                    <p class="small text-white-50 mb-3">Приложения <strong>Karing</strong> или <strong>Streisand</strong></p>
-                    <span class="badge badge-neon-emerald">Рекомендуем Karing</span>
+                <div class="card-glass p-4 text-center h-100 d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="fs-1 text-emerald mb-3"><i class="bi bi-apple"></i></div>
+                        <h5 class="fw-bold text-white">iOS (iPhone / iPad)</h5>
+                        <p class="small text-white-50 mb-3">Приложения <strong>Karing</strong> или <strong>Streisand</strong> из App Store</p>
+                    </div>
+                    <a href="/instructions#content-ios" class="btn btn-glow-volt btn-sm w-100">
+                        <i class="bi bi-book me-1"></i> Инструкция iOS
+                    </a>
                 </div>
             </div>
             <div class="col-md-6 col-lg-3">
-                <div class="card-glass p-4 text-center h-100">
-                    <div class="fs-1 text-indigo mb-3"><i class="bi bi-android2"></i></div>
-                    <h5 class="fw-bold text-white">Android</h5>
-                    <p class="small text-white-50 mb-3">Приложения <strong>Karing</strong>, <strong>v2rayNG</strong> или <strong>NekoBox</strong></p>
-                    <span class="badge badge-neon-indigo">Быстрый импорт</span>
+                <div class="card-glass p-4 text-center h-100 d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="fs-1 text-indigo mb-3"><i class="bi bi-android2"></i></div>
+                        <h5 class="fw-bold text-white">Android</h5>
+                        <p class="small text-white-50 mb-3">Приложения <strong>v2rayNG</strong> или <strong>Karing</strong></p>
+                    </div>
+                    <a href="/instructions#content-android" class="btn btn-glow-primary btn-sm w-100">
+                        <i class="bi bi-book me-1"></i> Инструкция Android
+                    </a>
                 </div>
             </div>
             <div class="col-md-6 col-lg-3">
-                <div class="card-glass p-4 text-center h-100">
-                    <div class="fs-1 text-purple mb-3"><i class="bi bi-windows"></i></div>
-                    <h5 class="fw-bold text-white">Windows</h5>
-                    <p class="small text-white-50 mb-3">Приложение <strong>v2rayN</strong> или <strong>Hiddify</strong></p>
-                    <span class="badge badge-neon-indigo">Автообновление</span>
+                <div class="card-glass p-4 text-center h-100 d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="fs-1 text-purple mb-3"><i class="bi bi-windows"></i></div>
+                        <h5 class="fw-bold text-white">Windows</h5>
+                        <p class="small text-white-50 mb-3">Приложение <strong>Hiddify</strong> или <strong>v2rayN</strong></p>
+                    </div>
+                    <a href="/instructions#content-windows" class="btn btn-glass-secondary btn-sm w-100">
+                        <i class="bi bi-book me-1"></i> Инструкция Windows
+                    </a>
                 </div>
             </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card-glass p-4 text-center h-100 d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="fs-1 text-warning mb-3"><i class="bi bi-tv"></i></div>
+                        <h5 class="fw-bold text-white">TV / Mac / Роутеры</h5>
+                        <p class="small text-white-50 mb-3">Android TV, macOS, Keenetic, OpenWrt</p>
+                    </div>
+                    <a href="/instructions" class="btn btn-glass-secondary btn-sm w-100">
+                        <i class="bi bi-book me-1"></i> Все платформы
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mt-3">
+            <a href="/instructions" class="btn btn-glass-secondary px-4 py-2">
+                <i class="bi bi-phone-fill me-2 text-volt"></i> Открыть полную иллюстрированную инструкцию со скриншотами
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- FAQ Section on Homepage -->
+<section id="faq" class="py-5 my-4">
+    <div class="container" style="max-width: 900px;">
+        <div class="text-center mb-5">
+            <div class="badge-neon-indigo mb-2">Ответы на вопросы</div>
+            <h2 class="hero-title fs-2 text-white">Часто задаваемые вопросы</h2>
+            <p class="text-white-50">Всё, что вам нужно знать перед началом работы с VoltaVPN</p>
+        </div>
+
+        <div class="accordion accordion-flush d-flex flex-column gap-3" id="homeFaqAccordion">
+            <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#homeFaq1">
+                        <i class="bi bi-shield-check text-emerald me-3 fs-5"></i>
+                        Как работает пробный период 3 дня бесплатно?
+                    </button>
+                </h2>
+                <div id="homeFaq1" class="accordion-collapse collapse" data-bs-parent="#homeFaqAccordion">
+                    <div class="accordion-body px-4 pb-4 pt-1 text-white-50 border-top border-glass">
+                        При регистрации на сайте или первом запуске Telegram-бота вы моментально получаете 3 дня полного доступа ко всем серверам без ограничений скорости и трафика. Привязывать банковскую карту не требуется!
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#homeFaq2">
+                        <i class="bi bi-broadcast text-volt me-3 fs-5"></i>
+                        Почему серверы VoltaVPN не блокируются в РФ?
+                    </button>
+                </h2>
+                <div id="homeFaq2" class="accordion-collapse collapse" data-bs-parent="#homeFaqAccordion">
+                    <div class="accordion-body px-4 pb-4 pt-1 text-white-50 border-top border-glass">
+                        Мы используем передовой протокол <strong>VLESS Reality</strong> с маскировкой трафика под крупные зарубежные веб-сервисы, а также <strong>Hysteria 2</strong> и <strong>Shadowsocks-2022</strong>. Трафик невозможно отличить от обычного HTTPS, поэтому провайдеры и ТСПУ не могут его заблокировать.
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#homeFaq3">
+                        <i class="bi bi-credit-card text-success me-3 fs-5"></i>
+                        Как оплатить подписку из России?
+                    </button>
+                </h2>
+                <div id="homeFaq3" class="accordion-collapse collapse" data-bs-parent="#homeFaqAccordion">
+                    <div class="accordion-body px-4 pb-4 pt-1 text-white-50 border-top border-glass">
+                        Оплата принимается через любые российские банковские карты (МИР, Visa, Mastercard), СБП (по QR-коду), кошелек ЮMoney и криптовалюту (USDT/TON через CryptoBot). Подписка продлевается моментально.
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item card-glass border-0 rounded-4 overflow-hidden">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-transparent text-white fw-bold py-3 px-4 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#homeFaq4">
+                        <i class="bi bi-arrow-repeat text-indigo me-3 fs-5"></i>
+                        Что делать, если какой-то сервер перестал работать?
+                    </button>
+                </h2>
+                <div id="homeFaq4" class="accordion-collapse collapse" data-bs-parent="#homeFaqAccordion">
+                    <div class="accordion-body px-4 pb-4 pt-1 text-white-50 border-top border-glass">
+                        Вам не нужно настраивать всё заново! Наш сервер автоматически проверяет пинг каждый час. Ваше приложение само обновляет список серверов в фоне. Достаточно выбрать другой сервер из списка (например, Финляндию или Нидерланды).
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <a href="/faq" class="btn btn-glass-secondary px-4 py-2">
+                <i class="bi bi-question-circle me-1 text-volt"></i> Посмотреть все вопросы и ответы (База знаний)
+            </a>
         </div>
     </div>
 </section>

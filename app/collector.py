@@ -29,6 +29,7 @@ PROTOCOL_PATTERNS = {
     'hysteria2': re.compile(r'^(hysteria2|hy2)://', re.IGNORECASE),
     'vmess': re.compile(r'^vmess://', re.IGNORECASE),
     'tuic': re.compile(r'^tuic://', re.IGNORECASE),
+    'wireguard': re.compile(r'^(wireguard|wg)://', re.IGNORECASE),
 }
 
 PROTOCOL_LABELS = {
@@ -38,6 +39,7 @@ PROTOCOL_LABELS = {
     'hysteria2': 'Hysteria2',
     'vmess': 'VMess',
     'tuic': 'Tuic',
+    'wireguard': 'WireGuard',
 }
 
 # Max threads for concurrent TCP connectivity testing
@@ -194,21 +196,56 @@ def detect_protocol(line):
 
 def extract_host_port(line, protocol):
     """
-    Extracts host (IP/domain) and port from a VPN URI config string.
+    Extracts host (IP/domain) and port from a VPN URI config string across all protocols and formats.
+    Handles standard URIs, legacy Base64 SS, VMess JSON, and IPv6 brackets.
     """
     try:
         line_str = line.strip()
+        if not line_str:
+            return None, None
+
         if protocol == 'vmess':
-            raw_b64 = line_str[8:]
+            raw_b64 = line_str[8:].split('#')[0].split('?')[0].strip()
+            # Normalize urlsafe base64 and padding
+            raw_b64 = raw_b64.replace('-', '+').replace('_', '/')
             missing_padding = len(raw_b64) % 4
             if missing_padding:
                 raw_b64 += '=' * (4 - missing_padding)
             decoded = base64.b64decode(raw_b64).decode('utf-8', errors='ignore')
             data = json.loads(decoded)
-            host = data.get('add') or data.get('host')
+            host = data.get('add') or data.get('host') or data.get('address')
             port = int(data.get('port', 443))
-            return host, port
+            return host.strip('[]') if host else None, port
 
+        if protocol == 'ss':
+            # Remove ss:// prefix and query/fragment
+            without_scheme = line_str[5:]
+            fragment = ''
+            if '#' in without_scheme:
+                without_scheme, fragment = without_scheme.split('#', 1)
+            query = ''
+            if '?' in without_scheme:
+                without_scheme, query = without_scheme.split('?', 1)
+
+            # Check if format is ss://base64_blob where base64 contains method:password@host:port
+            if '@' not in without_scheme:
+                raw_b64 = without_scheme.replace('-', '+').replace('_', '/')
+                missing_padding = len(raw_b64) % 4
+                if missing_padding:
+                    raw_b64 += '=' * (4 - missing_padding)
+                try:
+                    decoded = base64.b64decode(raw_b64).decode('utf-8', errors='ignore')
+                    if '@' in decoded:
+                        server_part = decoded.split('@')[-1]
+                        if '?' in server_part:
+                            server_part = server_part.split('?')[0]
+                        if ':' in server_part:
+                            h, p = server_part.rsplit(':', 1)
+                            return h.strip('[]'), int(p)
+                except Exception:
+                    pass
+
+        # Standard URI parsing for vless, trojan, hysteria2, tuic, ss (SIP002)
         parsed = urlparse(line_str)
         if parsed.netloc:
             netloc = parsed.netloc
@@ -218,17 +255,17 @@ def extract_host_port(line, protocol):
                 server_part = netloc
 
             if server_part.startswith('['):
-                host = server_part.split(']')[0] + ']'
+                host = server_part.split(']')[0].lstrip('[')
                 port_part = server_part.split(']:')[-1] if ']:' in server_part else '443'
                 port = int(port_part) if port_part.isdigit() else 443
             else:
                 if ':' in server_part:
-                    host, port_str = server_part.split(':')[:2]
+                    host, port_str = server_part.rsplit(':', 1)
                     port = int(port_str) if port_str.isdigit() else 443
                 else:
                     host = server_part
-                    port = 443 if protocol in ['vless', 'trojan', 'hysteria2'] else 80
-            return host, port
+                    port = 443 if protocol in ['vless', 'trojan', 'hysteria2', 'tuic'] else 8388
+            return host.strip('[]'), port
     except Exception:
         pass
     return None, None
@@ -398,15 +435,40 @@ def add_custom_config(content, protocol=None, country_code=None, is_working=True
 def add_batch_configs(text_block):
     """
     Admin helper to import multiple config lines at once.
+    Supports plain URI lists, base64-encoded subscription blocks, and mixed content.
     """
     from flask import current_app
-    lines = text_block.strip().splitlines()
+    raw = (text_block or '').strip()
+    if not raw:
+        return 0
+
+    lines = raw.splitlines()
+    all_lines = []
+    for line in lines:
+        line_clean = line.strip()
+        if not line_clean:
+            continue
+        proto = detect_protocol(line_clean)
+        if proto:
+            all_lines.append(line_clean)
+        else:
+            # Try decoding base64 if line doesn't start with a known scheme
+            try:
+                b64_str = line_clean.replace('-', '+').replace('_', '/')
+                missing_padding = len(b64_str) % 4
+                if missing_padding:
+                    b64_str += '=' * (4 - missing_padding)
+                decoded_str = base64.b64decode(b64_str).decode('utf-8', errors='ignore')
+                for sub_line in decoded_str.splitlines():
+                    sub_clean = sub_line.strip()
+                    if detect_protocol(sub_clean):
+                        all_lines.append(sub_clean)
+            except Exception:
+                pass
+
     added = 0
     with current_app.app_context():
-        for line in lines:
-            line_str = line.strip()
-            if not line_str or len(line_str) < 10:
-                continue
+        for line_str in all_lines:
             proto = detect_protocol(line_str)
             if not proto:
                 continue

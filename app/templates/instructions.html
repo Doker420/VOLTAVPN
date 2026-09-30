@@ -1,0 +1,483 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5 my-md-4">
+    <!-- Header -->
+    <div class="text-center mb-5" style="max-width: 760px; margin: 0 auto;">
+        <div class="badge-neon-emerald mb-3">
+            <i class="bi bi-magic me-1"></i> Настройка за 1 минуту
+        </div>
+        <h1 class="hero-title text-white">Инструкция по подключению VoltaVPN</h1>
+        <p class="text-white-50 fs-5 leading-relaxed">
+            Выберите ваше устройство, установите рекомендованное бесплатное приложение и добавьте персональную ссылку подписки VoltaVPN.
+        </p>
+
+        {% if current_user.is_authenticated and current_user.subscription and current_user.subscription.is_active %}
+        <div class="card-glass p-3 mt-4 text-start bg-dark border-volt">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                <span class="small text-white-50"><i class="bi bi-link-45deg text-volt me-1"></i> Ваша ссылка подписки:</span>
+                <span class="badge badge-neon-emerald">Активна</span>
+            </div>
+            <div class="input-group">
+                <input type="text" id="userSubUrl" class="form-control bg-dark text-volt font-monospace border-glass small" value="{{ get_base_url() }}/sub/{{ current_user.subscription.sub_token }}" readonly>
+                <button class="btn btn-glow-volt" onclick="navigator.clipboard.writeText(document.getElementById('userSubUrl').value); alert('Ссылка скопирована!');">
+                    <i class="bi bi-clipboard-check me-1"></i> Копировать
+                </button>
+            </div>
+        </div>
+        {% else %}
+        <div class="mt-4">
+            <button class="btn btn-glow-volt px-4 py-2" onclick="openAuthModal('register')">
+                <i class="bi bi-gift-fill me-1"></i> Получить ссылку (3 дня бесплатно)
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Platform Selector Tabs -->
+    <ul class="nav nav-pills justify-content-center gap-2 mb-5 p-2 bg-dark rounded-4 border border-glass" id="platformTabs" role="tablist" style="max-width: 820px; margin: 0 auto;">
+        <li class="nav-item flex-fill text-center" role="presentation">
+            <button class="nav-link w-100 active btn-glass-tab py-3" id="tab-ios" data-bs-toggle="pill" data-bs-target="#content-ios" type="button" role="tab">
+                <i class="bi bi-apple fs-4 d-block mb-1"></i>
+                <span class="fw-bold">iPhone / iPad</span>
+            </button>
+        </li>
+        <li class="nav-item flex-fill text-center" role="presentation">
+            <button class="nav-link w-100 btn-glass-tab py-3" id="tab-android" data-bs-toggle="pill" data-bs-target="#content-android" type="button" role="tab">
+                <i class="bi bi-android2 fs-4 d-block mb-1 text-success"></i>
+                <span class="fw-bold">Android</span>
+            </button>
+        </li>
+        <li class="nav-item flex-fill text-center" role="presentation">
+            <button class="nav-link w-100 btn-glass-tab py-3" id="tab-windows" data-bs-toggle="pill" data-bs-target="#content-windows" type="button" role="tab">
+                <i class="bi bi-windows fs-4 d-block mb-1 text-primary"></i>
+                <span class="fw-bold">Windows</span>
+            </button>
+        </li>
+        <li class="nav-item flex-fill text-center" role="presentation">
+            <button class="nav-link w-100 btn-glass-tab py-3" id="tab-mac" data-bs-toggle="pill" data-bs-target="#content-mac" type="button" role="tab">
+                <i class="bi bi-laptop fs-4 d-block mb-1 text-info"></i>
+                <span class="fw-bold">macOS</span>
+            </button>
+        </li>
+        <li class="nav-item flex-fill text-center" role="presentation">
+            <button class="nav-link w-100 btn-glass-tab py-3" id="tab-tv" data-bs-toggle="pill" data-bs-target="#content-tv" type="button" role="tab">
+                <i class="bi bi-tv fs-4 d-block mb-1 text-warning"></i>
+                <span class="fw-bold">TV / Роутеры</span>
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Contents -->
+    <div class="tab-content" id="platformTabsContent">
+        
+        <!-- ==================== iOS Tab ==================== -->
+        <div class="tab-pane fade show active" id="content-ios" role="tabpanel">
+            <div class="row g-4 align-items-start">
+                
+                <!-- Main recommendation: Karing / Streisand -->
+                <div class="col-lg-8">
+                    <div class="card-glass p-4 p-md-5 mb-4">
+                        <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="p-3 rounded-4 bg-emerald-50 text-emerald fs-2" style="background: rgba(16, 185, 129, 0.15);">
+                                    <i class="bi bi-phone"></i>
+                                </div>
+                                <div>
+                                    <h3 class="fw-bold text-white mb-0">Настройка на iOS (iPhone / iPad)</h3>
+                                    <small class="text-white-50">Приложение: <strong>Karing</strong> (рекомендуется) или <strong>Streisand</strong></small>
+                                </div>
+                            </div>
+                            <span class="badge badge-neon-emerald">Самый быстрый способ</span>
+                        </div>
+
+                        <!-- Step 1 -->
+                        <div class="instruction-step mb-5">
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <span class="step-badge">1</span>
+                                <h5 class="fw-bold text-white mb-0">Установите приложение из App Store</h5>
+                            </div>
+                            <p class="text-white-50 ms-md-5 ps-md-2 mb-3">
+                                Установите бесплатный клиент <strong>Karing</strong> (или Streisand / V2Box) прямо из официального App Store:
+                            </p>
+                            <div class="ms-md-5 ps-md-2 d-flex flex-wrap gap-3">
+                                <a href="https://apps.apple.com/app/karing/id6472431552" target="_blank" class="btn btn-glow-volt">
+                                    <i class="bi bi-apple me-1"></i> Скачать Karing в App Store
+                                </a>
+                                <a href="https://apps.apple.com/app/streisand/id6450534064" target="_blank" class="btn btn-glass-secondary">
+                                    <i class="bi bi-apple me-1"></i> Скачать Streisand
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Step 2 -->
+                        <div class="instruction-step mb-5">
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <span class="step-badge">2</span>
+                                <h5 class="fw-bold text-white mb-0">Импортируйте подписку в 1 клик</h5>
+                            </div>
+                            <p class="text-white-50 ms-md-5 ps-md-2 mb-3">
+                                Нажмите на кнопку быстрого добавления ниже, и приложение откроется автоматически с настроенными серверами:
+                            </p>
+                            {% if current_user.is_authenticated and current_user.subscription %}
+                            <div class="ms-md-5 ps-md-2 d-flex flex-wrap gap-2">
+                                <a href="karing://install-config?url={{ quote(get_base_url() + '/sub/' + current_user.subscription.sub_token, safe='') }}&name=VoltaVPN" class="btn btn-glow-primary">
+                                    <i class="bi bi-lightning-fill me-1"></i> Добавить в Karing (1 клик)
+                                </a>
+                                <a href="streisand://import/{{ quote(get_base_url() + '/sub/' + current_user.subscription.sub_token, safe='') }}" class="btn btn-glass-secondary">
+                                    <i class="bi bi-box-arrow-in-down me-1"></i> Добавить в Streisand
+                                </a>
+                            </div>
+                            {% else %}
+                            <div class="ms-md-5 ps-md-2">
+                                <button class="btn btn-glow-volt" onclick="openAuthModal('register')">
+                                    <i class="bi bi-gift-fill me-1"></i> Зарегистрироваться для получения кнопки
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Step 3 -->
+                        <div class="instruction-step mb-4">
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <span class="step-badge">3</span>
+                                <h5 class="fw-bold text-white mb-0">Включите VPN и выберите сервер</h5>
+                            </div>
+                            <p class="text-white-50 ms-md-5 ps-md-2 mb-3">
+                                В приложении нажмите главную круглую кнопку <strong>«Подключить»</strong>. При первом запуске iOS запросит стандартное системное разрешение на добавление VPN-конфигурации (нажмите <em>«Разрешить»</em> и введите пароль экрана блокировки).
+                            </p>
+                            <div class="ms-md-5 ps-md-2 p-3 bg-dark rounded-4 border border-glass small text-white-50">
+                                <i class="bi bi-lightbulb-fill text-warning me-2"></i><strong>Совет:</strong> Серверы VoltaVPN обновляются автоматически каждый час. Выбирайте страну с наименьшим пингом (Германия, Финляндия, Нидерланды).
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Visual App Mockup Preview -->
+                <div class="col-lg-4">
+                    <div class="card-glass p-4 text-center">
+                        <span class="badge badge-neon-indigo mb-3">Интерфейс в Karing</span>
+                        
+                        <!-- Realistic Mobile UI Mockup -->
+                        <div class="phone-mockup mx-auto p-3 bg-black rounded-5 border border-glass shadow-lg" style="max-width: 280px; border-width: 3px !important;">
+                            <div class="d-flex justify-content-between text-white-50 small mb-3 px-2">
+                                <span>9:41</span>
+                                <div><i class="bi bi-wifi me-1"></i><i class="bi bi-battery-full text-success"></i></div>
+                            </div>
+                            <div class="p-3 rounded-4 mb-3" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3);">
+                                <div class="text-emerald fw-bold small mb-1"><i class="bi bi-shield-fill-check me-1"></i> VoltaVPN Подключен</div>
+                                <div class="text-white small fw-bold">🇩🇪 VoltaVPN | Германия #1</div>
+                                <div class="text-white-50" style="font-size: 11px;">VLESS Reality · 38ms</div>
+                            </div>
+
+                            <div class="my-4">
+                                <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center shadow" style="width: 80px; height: 80px; background: linear-gradient(135deg, #10b981, #059669); color: white; font-size: 32px;">
+                                    <i class="bi bi-power"></i>
+                                </div>
+                                <div class="text-white small mt-2 fw-semibold">Защита активна</div>
+                            </div>
+
+                            <div class="p-2 bg-dark rounded-3 border border-glass text-start small text-white-50" style="font-size: 11px;">
+                                <div><i class="bi bi-arrow-repeat text-volt me-1"></i> Автообновление: 1 час</div>
+                                <div><i class="bi bi-speedometer2 text-success me-1"></i> Скорость: Безлимитно</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ==================== Android Tab ==================== -->
+        <div class="tab-pane fade" id="content-android" role="tabpanel">
+            <div class="row g-4 align-items-start">
+                
+                <div class="col-lg-8">
+                    <div class="card-glass p-4 p-md-5 mb-4">
+                        <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="p-3 rounded-4 text-success fs-2" style="background: rgba(34, 197, 94, 0.15);">
+                                    <i class="bi bi-android2"></i>
+                                </div>
+                                <div>
+                                    <h3 class="fw-bold text-white mb-0">Настройка на Android</h3>
+                                    <small class="text-white-50">Приложения: <strong>v2rayNG</strong> или <strong>Karing</strong></small>
+                                </div>
+                            </div>
+                            <span class="badge badge-neon-indigo">Работает везде</span>
+                        </div>
+
+                        <!-- Step 1 -->
+                        <div class="instruction-step mb-5">
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <span class="step-badge">1</span>
+                                <h5 class="fw-bold text-white mb-0">Скачайте v2rayNG или Karing</h5>
+                            </div>
+                            <p class="text-white-50 ms-md-5 ps-md-2 mb-3">
+                                Выберите удобный источник для скачивания приложения:
+                            </p>
+                            <div class="ms-md-5 ps-md-2 d-flex flex-wrap gap-3">
+                                <a href="https://play.google.com/store/apps/details?id=com.v2ray.ang" target="_blank" class="btn btn-glow-primary">
+                                    <i class="bi bi-google-play me-1"></i> v2rayNG в Google Play
+                                </a>
+                                <a href="https://github.com/2dust/v2rayNG/releases" target="_blank" class="btn btn-glass-secondary">
+                                    <i class="bi bi-github me-1"></i> Скачать APK (GitHub)
+                                </a>
+                                <a href="https://play.google.com/store/apps/details?id=com.karing.app" target="_blank" class="btn btn-glass-secondary">
+                                    <i class="bi bi-google-play me-1"></i> Karing в Google Play
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Step 2 -->
+                        <div class="instruction-step mb-5">
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <span class="step-badge">2</span>
+                                <h5 class="fw-bold text-white mb-0">Добавьте подписку VoltaVPN</h5>
+                            </div>
+                            <p class="text-white-50 ms-md-5 ps-md-2 mb-3">
+                                Нажмите на кнопку быстрого импорта или добавьте ссылку вручную в меню <strong>«Группы подписок»</strong>:
+                            </p>
+                            {% if current_user.is_authenticated and current_user.subscription %}
+                            <div class="ms-md-5 ps-md-2 d-flex flex-wrap gap-2">
+                                <a href="v2rayng://install-sub?url={{ quote(get_base_url() + '/sub/' + current_user.subscription.sub_token, safe='') }}&name=VoltaVPN" class="btn btn-glow-volt">
+                                    <i class="bi bi-box-arrow-in-down me-1"></i> Импорт в v2rayNG (1 клик)
+                                </a>
+                                <a href="karing://install-config?url={{ quote(get_base_url() + '/sub/' + current_user.subscription.sub_token, safe='') }}&name=VoltaVPN" class="btn btn-glass-secondary">
+                                    <i class="bi bi-lightning-fill me-1"></i> Импорт в Karing
+                                </a>
+                            </div>
+                            {% else %}
+                            <div class="ms-md-5 ps-md-2">
+                                <button class="btn btn-glow-volt" onclick="openAuthModal('register')">
+                                    <i class="bi bi-gift-fill me-1"></i> Зарегистрироваться и получить ссылку
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Step 3 -->
+                        <div class="instruction-step mb-4">
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <span class="step-badge">3</span>
+                                <h5 class="fw-bold text-white mb-0">Обновите подписку и подключитесь</h5>
+                            </div>
+                            <p class="text-white-50 ms-md-5 ps-md-2 mb-3">
+                                В правом верхнем углу v2rayNG нажмите на три точки и выберите <strong>«Обновить подписку»</strong>. Появится список проверенных серверов VoltaVPN. Выберите любой сервер и нажмите на круглую кнопку подключения внизу экрана.
+                            </p>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="card-glass p-4 text-center">
+                        <span class="badge badge-neon-emerald mb-3">Интерфейс в v2rayNG</span>
+                        <div class="phone-mockup mx-auto p-3 bg-black rounded-5 border border-glass shadow-lg" style="max-width: 280px; border-width: 3px !important;">
+                            <div class="d-flex justify-content-between text-white-50 small mb-3 px-2">
+                                <span class="fw-bold text-white">v2rayNG</span>
+                                <div><i class="bi bi-three-dots-vertical"></i></div>
+                            </div>
+                            <div class="d-flex flex-column gap-2 text-start">
+                                <div class="p-2 rounded-3 bg-dark border border-volt text-white small">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="fw-bold">🇩🇪 VoltaVPN | DE #1</span>
+                                        <span class="text-emerald">38 ms</span>
+                                    </div>
+                                    <div class="text-white-50" style="font-size: 10px;">VLESS Reality</div>
+                                </div>
+                                <div class="p-2 rounded-3 bg-dark border border-glass text-white-50 small">
+                                    <div class="d-flex justify-content-between">
+                                        <span>🇳🇱 VoltaVPN | NL #1</span>
+                                        <span class="text-emerald">42 ms</span>
+                                    </div>
+                                </div>
+                                <div class="p-2 rounded-3 bg-dark border border-glass text-white-50 small">
+                                    <div class="d-flex justify-content-between">
+                                        <span>🇫🇮 VoltaVPN | FI #1</span>
+                                        <span class="text-emerald">29 ms</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="my-3">
+                                <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center shadow" style="width: 60px; height: 60px; background: linear-gradient(135deg, #38bdf8, #2563eb); color: white; font-size: 24px;">
+                                    <i class="bi bi-check2"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ==================== Windows Tab ==================== -->
+        <div class="tab-pane fade" id="content-windows" role="tabpanel">
+            <div class="card-glass p-4 p-md-5 mb-4">
+                <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-3 rounded-4 text-primary fs-2" style="background: rgba(59, 130, 246, 0.15);">
+                            <i class="bi bi-windows"></i>
+                        </div>
+                        <div>
+                            <h3 class="fw-bold text-white mb-0">Настройка на Windows (10 / 11)</h3>
+                            <small class="text-white-50">Приложения: <strong>Hiddify</strong>, <strong>v2rayN</strong> или <strong>Karing</strong></small>
+                        </div>
+                    </div>
+                    <span class="badge badge-neon-indigo">Простая установка</span>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="card-glass p-3 h-100 bg-dark">
+                            <span class="step-badge mb-2">1</span>
+                            <h5 class="fw-bold text-white">Скачайте Hiddify / v2rayN</h5>
+                            <p class="small text-white-50 mb-3">Hiddify — самый современный и удобный клиент с русским интерфейсом.</p>
+                            <a href="https://github.com/hiddify/hiddify-next/releases" target="_blank" class="btn btn-glow-primary btn-sm w-100">
+                                <i class="bi bi-download me-1"></i> Скачать Hiddify (GitHub)
+                            </a>
+                            <a href="https://github.com/2dust/v2rayN/releases" target="_blank" class="btn btn-glass-secondary btn-sm w-100 mt-2">
+                                <i class="bi bi-download me-1"></i> Скачать v2rayN
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="card-glass p-3 h-100 bg-dark">
+                            <span class="step-badge mb-2">2</span>
+                            <h5 class="fw-bold text-white">Добавьте профиль</h5>
+                            <p class="small text-white-50 mb-3">В Hiddify нажмите кнопку «+ Новый профиль» -> «Добавить из буфера» (предварительно скопировав ссылку VoltaVPN).</p>
+                            {% if current_user.is_authenticated and current_user.subscription %}
+                            <a href="hiddify://import/{{ quote(get_base_url() + '/sub/' + current_user.subscription.sub_token, safe='') }}#VoltaVPN" class="btn btn-glow-volt btn-sm w-100">
+                                <i class="bi bi-box-arrow-in-down me-1"></i> Открыть в Hiddify
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="card-glass p-3 h-100 bg-dark">
+                            <span class="step-badge mb-2">3</span>
+                            <h5 class="fw-bold text-white">Подключитесь</h5>
+                            <p class="small text-white-50 mb-3">Нажмите большую круглую кнопку «Подключить» в центре экрана. Весь трафик Windows защищен.</p>
+                            <span class="badge badge-neon-emerald">Режим TUN (VPN для всей системы)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== macOS Tab ==================== -->
+        <div class="tab-pane fade" id="content-mac" role="tabpanel">
+            <div class="card-glass p-4 p-md-5 mb-4">
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    <div class="p-3 rounded-4 text-info fs-2" style="background: rgba(6, 182, 212, 0.15);">
+                        <i class="bi bi-laptop"></i>
+                    </div>
+                    <div>
+                        <h3 class="fw-bold text-white mb-0">Настройка на macOS</h3>
+                        <small class="text-white-50">Приложения: <strong>Streisand</strong>, <strong>Hiddify</strong>, <strong>V2Box</strong> или <strong>Karing</strong></small>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="card-glass p-4 h-100 bg-dark">
+                            <h5 class="fw-bold text-white mb-3"><i class="bi bi-apple me-2 text-volt"></i>Вариант 1: Streisand (из Mac App Store)</h5>
+                            <ol class="text-white-50 small d-flex flex-column gap-2 mb-4">
+                                <li>Установите <strong>Streisand</strong> из Mac App Store.</li>
+                                <li>Скопируйте ссылку подписки VoltaVPN из личного кабинета.</li>
+                                <li>В приложении нажмите <strong>«+»</strong> и выберите «Add Subscription».</li>
+                                <li>Нажмите кнопку подключения.</li>
+                            </ol>
+                            <a href="https://apps.apple.com/app/streisand/id6450534064" target="_blank" class="btn btn-glow-volt btn-sm">
+                                <i class="bi bi-apple me-1"></i> Скачать Streisand для Mac
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card-glass p-4 h-100 bg-dark">
+                            <h5 class="fw-bold text-white mb-3"><i class="bi bi-stars me-2 text-primary"></i>Вариант 2: Hiddify для macOS</h5>
+                            <ol class="text-white-50 small d-flex flex-column gap-2 mb-4">
+                                <li>Скачайте и установите <strong>Hiddify.dmg</strong>.</li>
+                                <li>Вставьте ссылку подписки или нажмите импорт в 1 клик.</li>
+                                <li>Включите режим <strong>VPN (TUN)</strong> и нажмите «Подключить».</li>
+                            </ol>
+                            <a href="https://github.com/hiddify/hiddify-next/releases" target="_blank" class="btn btn-glass-secondary btn-sm">
+                                <i class="bi bi-download me-1"></i> Скачать Hiddify DMG
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TV & Routers Tab ==================== -->
+        <div class="tab-pane fade" id="content-tv" role="tabpanel">
+            <div class="card-glass p-4 p-md-5 mb-4">
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    <div class="p-3 rounded-4 text-warning fs-2" style="background: rgba(245, 158, 11, 0.15);">
+                        <i class="bi bi-tv"></i>
+                    </div>
+                    <div>
+                        <h3 class="fw-bold text-white mb-0">Настройка на Android TV и Роутерах</h3>
+                        <small class="text-white-50">YouTube 4K, Smart TV, Keenetic, OpenWrt, Mikrotik</small>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="card-glass p-4 h-100 bg-dark">
+                            <h5 class="fw-bold text-white mb-3"><i class="bi bi-tv me-2 text-warning"></i>Android TV / Смарт-ТВ приставки</h5>
+                            <ul class="text-white-50 small d-flex flex-column gap-2 mb-3">
+                                <li>Установите <strong>v2rayNG</strong> или <strong>Hiddify</strong> из Google Play TV на телевизоре.</li>
+                                <li>В личном кабинете VoltaVPN на телефоне откройте QR-код подписки.</li>
+                                <li>В приложении на ТВ выберите «Сканировать QR-код с камеры / экрана» или отправьте ссылку через приложение Android TV Remote.</li>
+                                <li>Смотрите YouTube без замедления в 4K Ultra HD!</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card-glass p-4 h-100 bg-dark">
+                            <h5 class="fw-bold text-white mb-3"><i class="bi bi-router me-2 text-emerald"></i>Роутеры (Keenetic / OpenWrt)</h5>
+                            <p class="text-white-50 small mb-3">
+                                Для роутеров поддерживаются протоколы <strong>Shadowsocks-2022</strong> и <strong>VLESS Reality</strong> через пакеты Xray / Sing-box или клиент встроенного VPN-клиента.
+                            </p>
+                            <p class="text-white-50 small">
+                                Напишите в нашу службу поддержки, и мы поможем настроить роутер под ключ!
+                            </p>
+                            <a href="javascript:void(0)" onclick="openSupportChat()" class="btn btn-glow-volt btn-sm">
+                                <i class="bi bi-chat-dots me-1"></i> Написать в техподдержку
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Need Help Section -->
+    <div class="card-glass p-4 p-md-5 text-center mt-5 bg-dark border-volt">
+        <div class="fs-1 text-volt mb-2"><i class="bi bi-headset"></i></div>
+        <h4 class="fw-bold text-white mb-2">Остались вопросы по подключению?</h4>
+        <p class="text-white-50 mb-4" style="max-width: 600px; margin: 0 auto;">
+            Наша служба поддержки работает 24/7. Напишите нам в онлайн-чат на сайте или в Telegram-бот — ответим в течение 2 минут!
+        </p>
+        <div class="d-flex justify-content-center gap-3 flex-wrap">
+            <button class="btn btn-glow-volt px-4 py-2" onclick="openSupportChat()">
+                <i class="bi bi-chat-left-dots-fill me-1"></i> Онлайн-чат на сайте
+            </button>
+            <a href="{{ support_info.telegram_link if support_info else 'https://t.me/volta_vpn_bot' }}" target="_blank" class="btn btn-glass-secondary px-4 py-2">
+                <i class="bi bi-telegram me-1"></i> Telegram поддержка
+            </a>
+            <a href="/faq" class="btn btn-glass-secondary px-4 py-2">
+                <i class="bi bi-question-circle me-1"></i> Раздел FAQ
+            </a>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

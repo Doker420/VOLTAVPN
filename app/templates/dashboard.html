@@ -182,11 +182,16 @@
 
         <!-- Quick Setup Instructions Tab -->
         <div class="card-glass p-4 p-md-5 mb-5" id="guides">
-            <h4 class="fw-bold text-white mb-4"><i class="bi bi-gear-wide-connected text-emerald me-2"></i> Инструкции по настройке</h4>
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+                <h4 class="fw-bold text-white mb-0"><i class="bi bi-gear-wide-connected text-emerald me-2"></i> Инструкции по настройке</h4>
+                <a href="/instructions" class="btn btn-glow-volt btn-sm">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> Полная иллюстрированная инструкция со скриншотами
+                </a>
+            </div>
             
             <ul class="nav nav-pills gap-2 mb-4" id="setupTabs">
                 <li class="nav-item">
-                    <button class="nav-link active btn-glass-secondary px-4" data-bs-toggle="tab" data-bs-target="#tabIOS"><i class="bi bi-apple me-1"></i> iOS (iPhone)</button>
+                    <button class="nav-link active btn-glass-secondary px-4" data-bs-toggle="tab" data-bs-target="#tabIOS"><i class="bi bi-apple me-1"></i> iOS (iPhone / iPad)</button>
                 </li>
                 <li class="nav-item">
                     <button class="nav-link btn-glass-secondary px-4" data-bs-toggle="tab" data-bs-target="#tabAndroid"><i class="bi bi-android2 me-1"></i> Android</button>
@@ -215,12 +220,21 @@
                 </div>
                 <div class="tab-pane fade" id="tabWindows">
                     <ol class="lh-lg mb-0">
-                        <li>Скачайте и запустите <a href="https://github.com/2dust/v2rayN/releases" target="_blank" class="text-indigo fw-semibold">v2rayN</a> или <a href="https://hiddify.com/" target="_blank" class="text-indigo fw-semibold">Hiddify</a>.</li>
+                        <li>Скачайте и запустите <a href="https://github.com/2dust/v2rayN/releases" target="_blank" class="text-indigo fw-semibold">v2rayN</a> или <a href="https://github.com/hiddify/hiddify-next/releases" target="_blank" class="text-indigo fw-semibold">Hiddify</a>.</li>
                         <li>Перейдите в раздел <strong>«Subscription setting» (Настройка подписки)</strong>.</li>
                         <li>Нажмите <strong>«Add» (Добавить)</strong> и вставьте вашу ссылку.</li>
                         <li>Нажмите <strong>«Update subscription without proxy»</strong> в меню подписки.</li>
                     </ol>
                 </div>
+            </div>
+            
+            <div class="mt-4 pt-3 border-top border-glass d-flex flex-wrap gap-3">
+                <a href="/faq" class="btn btn-glass-secondary btn-sm">
+                    <i class="bi bi-question-circle me-1 text-volt"></i> База знаний и FAQ
+                </a>
+                <button class="btn btn-glass-secondary btn-sm" onclick="openSupportChat()">
+                    <i class="bi bi-chat-dots me-1 text-emerald"></i> Написать в поддержку
+                </button>
             </div>
         </div>
 

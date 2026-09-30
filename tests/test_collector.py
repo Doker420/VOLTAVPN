@@ -89,6 +89,40 @@ def test_rename_node_vmess_sets_ps_field():
     assert decoded['add'] == 'vmess.example.com'
 
 
+def test_detect_protocol_wireguard():
+    assert detect_protocol("wireguard://privkey@1.2.3.4:51820#wg") == 'wireguard'
+    assert detect_protocol("wg://privkey@1.2.3.4:51820#wg") == 'wireguard'
+
+
+def test_extract_host_port_shadowsocks_legacy_base64():
+    # ss://BASE64(aes-128-gcm:pass123@192.168.1.50:8388)#tag
+    raw = "aes-128-gcm:pass123@192.168.1.50:8388"
+    b64 = base64.b64encode(raw.encode()).decode()
+    host, port = extract_host_port(f"ss://{b64}#MyNode", 'ss')
+    assert host == '192.168.1.50'
+    assert port == 8388
+
+
+def test_extract_host_port_shadowsocks_sip002():
+    # ss://BASE64(aes-128-gcm:pass123)@de.volta-node.net:8388#tag
+    userinfo = base64.b64encode("aes-128-gcm:pass123".encode()).decode()
+    host, port = extract_host_port(f"ss://{userinfo}@de.volta-node.net:8388#MyNode", 'ss')
+    assert host == 'de.volta-node.net'
+    assert port == 8388
+
+
+def test_extract_host_port_ipv6():
+    host, port = extract_host_port("vless://uuid@[2001:db8::1]:8443?type=tcp#ipv6-node", 'vless')
+    assert host == '2001:db8::1'
+    assert port == 8443
+
+
+def test_extract_host_port_hysteria2():
+    host, port = extract_host_port("hy2://pass@us.volta-node.net:443?sni=google.com#us-hy2", 'hysteria2')
+    assert host == 'us.volta-node.net'
+    assert port == 443
+
+
 def test_build_branded_lines_numbers_per_protocol():
     configs = [
         FakeConfig('vless', "vless://a@h1:443#x", 10),
