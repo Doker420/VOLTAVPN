@@ -14,17 +14,15 @@ from urllib.parse import urlparse, parse_qs, unquote, quote
 from sqlalchemy import or_, and_
 from app.models import Config, db
 
+# These feeds are explicitly published by igareck as tested for use in РФ.
+# Do not mix them with generic global collectors: a TCP check from our VPS
+# does not prove that a node works for a Russian subscriber.
 GITHUB_SOURCES = [
-    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_SS+All_RUS.txt",
-    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_VLESS_RUS.txt",
     "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_VLESS_RUS_mobile.txt",
-    "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/sub/normal/vless",
-    "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/sub/normal/shadowsocks",
-    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Splitted-By-Protocol/vless.txt",
-    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Splitted-By-Protocol/ss.txt",
-    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Splitted-By-Protocol/trojan.txt",
-    "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Splitted-By-Protocol/hysteria2.txt",
+    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_VLESS_RUS.txt",
+    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_SS+All_RUS.txt",
 ]
+RUSSIA_VERIFIED_SOURCE = 'igareck/vpn-configs-for-russia'
 
 # Brand prefix used when auto-generating subscription node names
 BRAND = "VoltaVPN"
@@ -390,12 +388,24 @@ def fetch_configs_from_source(url):
         return []
 
 
+def _is_russia_verified_source(source_url):
+    return RUSSIA_VERIFIED_SOURCE in (source_url or '')
+
+
 def _probe(entry):
     line_str, protocol, source_url = entry
     host, port = extract_host_port(line_str, protocol)
     sni, is_tls = extract_sni_and_tls(line_str, protocol)
-    latency = test_tcp_connection(host, port, timeout=TCP_TIMEOUT, sni=sni, is_tls=is_tls)
-    is_working = latency is not None
+
+    # The upstream repository already performs availability/speed tests from
+    # Russian nodes. Re-probing these entries from the hosting VPS would
+    # incorrectly discard configs that are blocked only outside/inside РФ.
+    if _is_russia_verified_source(source_url):
+        latency = None
+        is_working = bool(host and port)
+    else:
+        latency = test_tcp_connection(host, port, timeout=TCP_TIMEOUT, sni=sni, is_tls=is_tls)
+        is_working = latency is not None
     code = resolve_country(host) if is_working else None
     return {
         'content': line_str,
@@ -694,6 +704,10 @@ def probe_all_configs(delete_dead=True):
 
         entries = []
         for c in configs:
+            # Keep the upstream РФ-tested pool intact. The source is refreshed
+            # by collect_configs; local probing must not mark it dead.
+            if _is_russia_verified_source(c.source_url):
+                continue
             sni, is_tls = extract_sni_and_tls(c.content, c.protocol)
             entries.append((c.id, c.host, c.port, sni, is_tls))
 
@@ -716,6 +730,10 @@ def probe_all_configs(delete_dead=True):
         working_count = 0
         dead_count = 0
         for c in configs:
+            if _is_russia_verified_source(c.source_url):
+                if c.is_working:
+                    working_count += 1
+                continue
             lat = results.get(c.id)
             if lat is not None and lat < 450.0:
                 c.latency_ms = lat
