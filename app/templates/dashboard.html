@@ -240,6 +240,149 @@
         </div>
         {% endif %}
 
+        <!-- Partner & Affiliate Program Card -->
+        <div class="card-glass p-4 p-md-5 mb-5" id="affiliate-section" style="border: 1px solid rgba(16, 185, 129, 0.4);">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="p-3 rounded-4 bg-dark text-emerald fs-2 border border-glass">
+                        <i class="bi bi-gift-fill"></i>
+                    </div>
+                    <div>
+                        <span class="badge badge-neon-emerald mb-1">🎁 75% со всех оплат навсегда</span>
+                        <h4 class="fw-bold text-white mb-0">Партнёрская программа VoltaVPN</h4>
+                        <p class="text-white-50 small mb-0">Приглашай друзей и зарабатывай с VoltaVPN</p>
+                    </div>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-glow-volt px-3 py-2" data-bs-toggle="modal" data-bs-target="#dashboardWithdrawModal" {% if ref_info.affiliate_balance < ref_info.min_withdrawal %}disabled title="Минимум для вывода: {{ ref_info.min_withdrawal }} ₽"{% endif %}>
+                        <i class="bi bi-wallet2 me-1"></i> Вывести {{ ref_info.affiliate_balance }} ₽
+                    </button>
+                    <a href="/affiliate" class="btn btn-glass-secondary btn-sm px-3 py-2">
+                        <i class="bi bi-box-arrow-up-right me-1"></i> Подробнее
+                    </a>
+                </div>
+            </div>
+
+            <!-- Stats KPI Cards -->
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-lg-3">
+                    <div class="p-3 rounded-4 bg-dark border border-glass h-100">
+                        <div class="small text-white-50 mb-1">Баланс к выводу</div>
+                        <div class="fs-4 fw-bold text-emerald">{{ ref_info.affiliate_balance }} <span class="fs-6">₽</span></div>
+                        <div class="small text-white-50 mt-1">Мин. вывод: {{ ref_info.min_withdrawal }} ₽</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="p-3 rounded-4 bg-dark border border-glass h-100">
+                        <div class="small text-white-50 mb-1">Всего заработано</div>
+                        <div class="fs-4 fw-bold text-volt">{{ ref_info.affiliate_earned_total }} <span class="fs-6">₽</span></div>
+                        <div class="small text-white-50 mt-1">Ставка: {{ ref_info.commission_percent }}%</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="p-3 rounded-4 bg-dark border border-glass h-100">
+                        <div class="small text-white-50 mb-1">Приглашено друзей</div>
+                        <div class="fs-4 fw-bold text-white">{{ ref_info.referrals_count }}</div>
+                        <div class="small text-white-50 mt-1">По вашей ссылке</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="p-3 rounded-4 bg-dark border border-glass h-100">
+                        <div class="small text-white-50 mb-1">Активных подписок</div>
+                        <div class="fs-4 fw-bold text-warning">{{ ref_info.active_refs }}</div>
+                        <div class="small text-white-50 mt-1">Приносят доход</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Referral Link Box -->
+            <div class="p-4 rounded-4 bg-dark border border-glass mb-4">
+                <label class="form-label fw-bold text-white mb-2"><i class="bi bi-link-45deg text-volt fs-5 me-1"></i>Ваша персональная реферальная ссылка</label>
+                <div class="input-group mb-3">
+                    <input type="text" id="dashAffLinkInput" class="form-control copy-field text-white" value="{{ ref_info.web_ref_link }}" readonly>
+                    <button class="btn btn-glow-volt px-4" type="button" onclick="copyDashAffUrl()">
+                        <i class="bi bi-clipboard me-1" id="copyDashAffIcon"></i> <span id="copyDashAffText">Копировать</span>
+                    </button>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="https://t.me/share/url?url={{ quote(ref_info.ref_link) }}&text={{ quote('⚡ Молниеносный VPN без блокировок VoltaVPN! Попробуй 3 дня бесплатно:') }}" target="_blank" class="btn btn-glass-secondary btn-sm">
+                        <i class="bi bi-telegram text-volt me-1"></i> Поделиться в Telegram
+                    </a>
+                    <a href="https://vk.com/share.php?url={{ quote(ref_info.web_ref_link) }}" target="_blank" class="btn btn-glass-secondary btn-sm">
+                        <i class="bi bi-share text-cyan me-1"></i> ВКонтакте
+                    </a>
+                </div>
+            </div>
+
+            {% if ref_info.rewards_history or ref_info.withdrawals_history %}
+            <div class="row g-4">
+                {% if ref_info.rewards_history %}
+                <div class="col-lg-6">
+                    <h6 class="fw-bold text-white mb-2"><i class="bi bi-cash-stack text-emerald me-1"></i> Последние начисления</h6>
+                    <div class="table-responsive rounded-3 border border-glass">
+                        <table class="table table-dark table-hover align-middle mb-0 small">
+                            <thead>
+                                <tr class="text-white-50">
+                                    <th>Пользователь</th>
+                                    <th>Сумма</th>
+                                    <th>Доход</th>
+                                    <th>Дата</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in ref_info.rewards_history[:5] %}
+                                <tr>
+                                    <td>{{ r.referred_user.username if r.referred_user else 'Реферал' }}</td>
+                                    <td>{{ r.payment_amount }} ₽</td>
+                                    <td><span class="text-emerald fw-bold">+{{ r.reward_amount }} ₽</span></td>
+                                    <td class="text-white-50">{{ r.created_at.strftime('%d.%m') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if ref_info.withdrawals_history %}
+                <div class="col-lg-6">
+                    <h6 class="fw-bold text-white mb-2"><i class="bi bi-credit-card text-volt me-1"></i> Последние заявки на вывод</h6>
+                    <div class="table-responsive rounded-3 border border-glass">
+                        <table class="table table-dark table-hover align-middle mb-0 small">
+                            <thead>
+                                <tr class="text-white-50">
+                                    <th>Сумма</th>
+                                    <th>Способ</th>
+                                    <th>Статус</th>
+                                    <th>Дата</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for w in ref_info.withdrawals_history[:5] %}
+                                <tr>
+                                    <td class="fw-bold text-white">{{ w.amount }} ₽</td>
+                                    <td>{{ w.method_label() }}</td>
+                                    <td>
+                                        {% if w.status == 'completed' %}
+                                        <span class="badge badge-neon-emerald">Выплачено</span>
+                                        {% elif w.status == 'rejected' %}
+                                        <span class="badge bg-danger">Отклонено</span>
+                                        {% else %}
+                                        <span class="badge badge-neon-warning">В обработке</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-white-50">{{ w.created_at.strftime('%d.%m') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
         <!-- Quick Setup Instructions Tab -->
         <div class="card-glass p-4 p-md-5 mb-5" id="guides">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
@@ -364,23 +507,112 @@
         </div>
     </div>
 </section>
+
+<!-- Dashboard Withdrawal Modal -->
+<div class="modal fade" id="dashboardWithdrawModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content card-glass border-0 text-white p-3 p-md-4">
+            <div class="modal-header border-0 pb-2">
+                <h5 class="fw-bold text-white mb-0"><i class="bi bi-wallet2 text-emerald me-2"></i>Заказ выплаты партнёрских средств</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-3">
+                <form method="POST" action="/affiliate/withdraw">
+                    <div class="p-3 rounded-3 bg-dark border border-glass mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-white-50 small">Доступно к выводу:</span>
+                            <span class="fw-bold text-emerald fs-5">{{ ref_info.affiliate_balance }} ₽</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-white-50 small">Сумма вывода (₽)</label>
+                        <input type="number" step="0.01" min="{{ ref_info.min_withdrawal }}" max="{{ ref_info.affiliate_balance }}" name="amount" value="{{ ref_info.affiliate_balance }}" class="form-control auth-input text-white" required>
+                        <div class="form-text text-white-50 small">Минимум для вывода: {{ ref_info.min_withdrawal }} ₽</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-white-50 small">Способ выплаты</label>
+                        <select name="payout_method" class="form-select auth-input text-white" id="dashPayoutMethodSelect" required>
+                            <option value="sbp">⚡ СБП (По номеру телефона и банку)</option>
+                            <option value="card">💳 Банковская карта РФ (МИР, Visa, MC)</option>
+                            <option value="yoomoney">🟣 ЮMoney кошелёк</option>
+                            <option value="usdt">💵 USDT (TRC-20)</option>
+                            <option value="ton">💎 TON Coin</option>
+                            <option value="balance_sub">🔄 Оплатить/продлить подписку со скидкой</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label text-white-50 small" id="dashPayoutDetailsLabel">Реквизиты для перевода</label>
+                        <input type="text" name="payout_details" id="dashPayoutDetailsInput" class="form-control auth-input text-white" placeholder="+79991234567 (Т-Банк / Сбербанк)" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-glow-volt w-100 py-3">
+                        <i class="bi bi-send-check me-1"></i> Отправить заявку на вывод
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 function copySubUrl() {
     const input = document.getElementById('subUrlInput');
+    if (!input) return;
     input.select();
     navigator.clipboard.writeText(input.value).then(() => {
         const copyText = document.getElementById('copyText');
         const copyIcon = document.getElementById('copyIcon');
-        copyText.innerText = 'Скопировано!';
-        copyIcon.className = 'bi bi-check-lg';
+        if (copyText) copyText.innerText = 'Скопировано!';
+        if (copyIcon) copyIcon.className = 'bi bi-check-lg';
         setTimeout(() => {
-            copyText.innerText = 'Копировать';
-            copyIcon.className = 'bi bi-clipboard';
+            if (copyText) copyText.innerText = 'Копировать';
+            if (copyIcon) copyIcon.className = 'bi bi-clipboard';
         }, 2500);
     });
 }
+
+function copyDashAffUrl() {
+    const input = document.getElementById('dashAffLinkInput');
+    if (!input) return;
+    input.select();
+    navigator.clipboard.writeText(input.value).then(() => {
+        const copyText = document.getElementById('copyDashAffText');
+        const copyIcon = document.getElementById('copyDashAffIcon');
+        if (copyText) copyText.innerText = 'Скопировано!';
+        if (copyIcon) copyIcon.className = 'bi bi-check-lg text-emerald';
+        setTimeout(() => {
+            if (copyText) copyText.innerText = 'Копировать';
+            if (copyIcon) copyIcon.className = 'bi bi-clipboard';
+        }, 2000);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const methodSelect = document.getElementById('dashPayoutMethodSelect');
+    const detailsInput = document.getElementById('dashPayoutDetailsInput');
+    const detailsLabel = document.getElementById('dashPayoutDetailsLabel');
+
+    if (methodSelect && detailsInput && detailsLabel) {
+        const placeholders = {
+            'sbp': { label: 'Номер телефона и банк для СБП', ph: '+79991234567 (Т-Банк / Сбер)' },
+            'card': { label: 'Номер банковской карты РФ', ph: '2200 1234 5678 9012' },
+            'yoomoney': { label: 'Номер кошелька ЮMoney', ph: '410011234567890' },
+            'usdt': { label: 'Адрес USDT (TRC-20)', ph: 'TXYZ1234567890abcdef...' },
+            'ton': { label: 'TON кошелёк (адрес)', ph: 'EQB...' },
+            'balance_sub': { label: 'Комментарий к продлению подписки', ph: 'Продлить подписку текущего аккаунта' },
+        };
+
+        methodSelect.addEventListener('change', function() {
+            const cfg = placeholders[this.value] || placeholders['sbp'];
+            detailsLabel.innerText = cfg.label;
+            detailsInput.placeholder = cfg.ph;
+        });
+    }
+});
 </script>
 {% endblock %}

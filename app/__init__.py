@@ -42,6 +42,9 @@ def _run_lightweight_migrations():
         ('link_code', 'ALTER TABLE user ADD COLUMN link_code VARCHAR(32)'),
         ('ref_code', 'ALTER TABLE user ADD COLUMN ref_code VARCHAR(32)'),
         ('reg_ip', 'ALTER TABLE user ADD COLUMN reg_ip VARCHAR(64)'),
+        ('referred_by_id', 'ALTER TABLE user ADD COLUMN referred_by_id INTEGER'),
+        ('affiliate_balance', 'ALTER TABLE user ADD COLUMN affiliate_balance FLOAT DEFAULT 0.0'),
+        ('affiliate_earned_total', 'ALTER TABLE user ADD COLUMN affiliate_earned_total FLOAT DEFAULT 0.0'),
     ):
         if col_name not in user_cols:
             try:

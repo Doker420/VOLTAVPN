@@ -33,6 +33,11 @@
                     <li class="nav-item">
                         <a class="nav-link nav-link-anim {% if request.path == '/faq' %}active{% endif %}" href="/faq">FAQ</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-anim text-emerald {% if request.path == '/affiliate' %}active{% endif %}" href="/affiliate">
+                            <i class="bi bi-gift-fill me-1"></i>Партнёрка 75%
+                        </a>
+                    </li>
                     {% if current_user.is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link nav-link-anim {% if request.path == '/dashboard' %}active{% endif %}" href="/dashboard">Мой VPN</a>
@@ -110,6 +115,7 @@
                     <div class="d-flex flex-wrap justify-content-center gap-3 small">
                         <a href="/" class="text-white-50 text-decoration-none hover-volt">Главная</a>
                         <a href="/#pricing" class="text-white-50 text-decoration-none hover-volt">Тарифы</a>
+                        <a href="/affiliate" class="text-white-50 text-decoration-none hover-volt text-emerald">Партнёрка 75%</a>
                         <a href="/instructions" class="text-white-50 text-decoration-none hover-volt">Инструкции</a>
                         <a href="/faq" class="text-white-50 text-decoration-none hover-volt">FAQ</a>
                         <a href="/terms" class="text-white-50 text-decoration-none hover-volt">Пользовательское соглашение</a>

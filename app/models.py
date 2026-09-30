@@ -10,6 +10,7 @@ class User(UserMixin, db.Model):
     telegram_verified = db.Column(db.Boolean, default=False)
     link_code = db.Column(db.String(32), unique=True, nullable=True)
     ref_code = db.Column(db.String(32), unique=True, nullable=True)
+    referred_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=True)
     password_hash = db.Column(db.String(256), nullable=True)
@@ -17,6 +18,8 @@ class User(UserMixin, db.Model):
     is_trial_used = db.Column(db.Boolean, default=False)
     login_token = db.Column(db.String(64), unique=True, nullable=True)
     reg_ip = db.Column(db.String(64), nullable=True)
+    affiliate_balance = db.Column(db.Float, default=0.0)
+    affiliate_earned_total = db.Column(db.Float, default=0.0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     subscriptions = db.relationship('Subscription', backref='user', lazy=True, cascade='all, delete-orphan')
 
@@ -139,9 +142,18 @@ class Referral(db.Model):
     """
     id = db.Column(db.Integer, primary_key=True)
     referrer_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, nullable=False)
-    invited_telegram_id = db.Column(db.BigInteger, unique=True, nullable=False)
+    invited_telegram_id = db.Column(db.BigInteger, index=True, nullable=True)
     invited_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    bonus_days_given = db.Column(db.Integer, default=1)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def referred_user_id(self):
+        return self.invited_user_id
+
+    @referred_user_id.setter
+    def referred_user_id(self, val):
+        self.invited_user_id = val
 
 
 class SupportMessage(db.Model):
@@ -210,6 +222,73 @@ class AppSetting(db.Model):
         except Exception:
             db.session.rollback()
             return None
+
+
+class AffiliateReward(db.Model):
+    """
+    Records commissions earned by referrers when invited users purchase subscriptions.
+    Default commission is 75% (configurable via Admin Panel).
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    referrer_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, nullable=False)
+    referred_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    payment_id = db.Column(db.Integer, db.ForeignKey('payment.id'), nullable=True)
+    payment_amount = db.Column(db.Float, nullable=False)
+    commission_percent = db.Column(db.Float, default=75.0)
+    reward_amount = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    referrer = db.relationship('User', foreign_keys=[referrer_id], backref=db.backref('affiliate_rewards', lazy=True, order_by='AffiliateReward.created_at.desc()'))
+    referred_user = db.relationship('User', foreign_keys=[referred_user_id], backref=db.backref('referral_commissions_generated', lazy=True))
+    payment = db.relationship('Payment', backref=db.backref('affiliate_reward', uselist=False))
+
+    @property
+    def percent(self):
+        return self.commission_percent
+
+
+class WithdrawalRequest(db.Model):
+    """
+    Partner withdrawal requests for earned affiliate commissions.
+    Supported payout methods: SBP, Bank Cards, YooMoney, USDT TRC20, TON, or internal subscription balance.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    payout_method = db.Column(db.String(50), nullable=False)  # 'sbp', 'card', 'yoomoney', 'usdt', 'ton', 'balance_sub'
+    payout_details = db.Column(db.String(255), nullable=False)
+    status = db.Column(db.String(30), default='pending')      # 'pending', 'completed', 'rejected'
+    admin_comment = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    processed_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship('User', backref=db.backref('withdrawal_requests', lazy=True, order_by='WithdrawalRequest.created_at.desc()'))
+
+    def method_label(self):
+        labels = {
+            'sbp': 'СБП (Номер телефона)',
+            'card': 'Банковская карта РФ (МИР/Visa/MC)',
+            'yoomoney': 'ЮMoney кошелёк',
+            'usdt': 'USDT (TRC-20)',
+            'ton': 'TON кошелёк',
+            'balance_sub': 'Оплата подписки с баланса',
+        }
+        return labels.get(self.payout_method, self.payout_method.upper())
+
+    def status_badge_class(self):
+        if self.status == 'completed':
+            return 'badge-neon-emerald'
+        elif self.status == 'rejected':
+            return 'bg-danger'
+        return 'badge-neon-indigo'
+
+    def status_label(self):
+        labels = {
+            'pending': '⏳ В обработке',
+            'completed': '✅ Выплачено',
+            'rejected': '❌ Отклонено',
+        }
+        return labels.get(self.status, self.status)
 
 
 @login_manager.user_loader

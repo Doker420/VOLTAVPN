@@ -1,7 +1,7 @@
-from flask import render_template, redirect, url_for, flash, request, jsonify, current_app, Response, abort
+from flask import render_template, redirect, url_for, flash, request, jsonify, current_app, Response, abort, session
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db
-from app.models import User, Subscription, Config, Payment, TrialClaim, SupportMessage, AppSetting
+from app.models import User, Subscription, Config, Payment, TrialClaim, SupportMessage, AppSetting, Referral, AffiliateReward, WithdrawalRequest
 from app.payment import (
     create_platega_payment,
     create_cryptobot_payment,
@@ -61,9 +61,7 @@ def _support_contacts():
 
 
 def _referral_info(user):
-    """Returns referral progress + Telegram share button URL."""
-    from app.models import Referral
-
+    """Returns referral progress, affiliate earnings, commission rate, and withdrawal history."""
     if not getattr(user, 'ref_code', None):
         try:
             user.ref_code = uuid.uuid4().hex[:10]
@@ -71,26 +69,67 @@ def _referral_info(user):
         except Exception:
             db.session.rollback()
 
-    count = Referral.query.filter_by(referrer_id=user.id).count() if user.ref_code else 0
-    bot_username = current_app.config.get('BOT_USERNAME')
+    ref_count_direct = User.query.filter_by(referred_by_id=user.id).count() if getattr(user, 'id', None) else 0
+    ref_count_logs = Referral.query.filter_by(referrer_id=user.id).count() if getattr(user, 'id', None) else 0
+    count = max(ref_count_direct, ref_count_logs)
+
+    bot_username = current_app.config.get('BOT_USERNAME') or os.getenv('BOT_USERNAME', 'volta_vpn_bot')
     if bot_username and user.ref_code:
         ref_link = f"https://t.me/{bot_username}?start=ref_{user.ref_code}"
     else:
         ref_link = f"{get_base_url()}/r/{user.ref_code}" if user.ref_code else get_base_url()
 
+    web_ref_link = f"{get_base_url()}/r/{user.ref_code}" if user.ref_code else get_base_url()
+
     share_text = (
-        "⚡ Молниеносный быстрый VPN для России — VOLTA! "
-        "Автообновляемые серверы, работает где угодно. Попробуй бесплатно 👇"
+        "⚡ Забирай быстрый и надежный VPN для России — VoltaVPN! "
+        "Автообновление серверов, YouTube в 4K и 3 дня бесплатно 👇"
     )
     share_url = f"https://t.me/share/url?url={quote(ref_link, safe='')}&text={quote(share_text, safe='')}"
+
+    try:
+        commission_percent = float(AppSetting.get('AFFILIATE_COMMISSION_PERCENT') or current_app.config.get('AFFILIATE_COMMISSION_PERCENT', '75'))
+    except Exception:
+        commission_percent = 75.0
+
+    try:
+        min_withdrawal = float(AppSetting.get('MIN_WITHDRAWAL_AMOUNT') or current_app.config.get('MIN_WITHDRAWAL_AMOUNT', '100'))
+    except Exception:
+        min_withdrawal = 100.0
+
+    rewards = AffiliateReward.query.filter_by(referrer_id=user.id).order_by(AffiliateReward.created_at.desc()).limit(30).all() if getattr(user, 'id', None) else []
+    withdrawals = WithdrawalRequest.query.filter_by(user_id=user.id).order_by(WithdrawalRequest.created_at.desc()).limit(30).all() if getattr(user, 'id', None) else []
+
+    affiliate_balance = round(user.affiliate_balance or 0.0, 2) if getattr(user, 'affiliate_balance', None) else 0.0
+    affiliate_earned_total = round(user.affiliate_earned_total or 0.0, 2) if getattr(user, 'affiliate_earned_total', None) else 0.0
+
+    now = datetime.utcnow()
+    active_refs = (
+        Subscription.query.join(User, Subscription.user_id == User.id)
+        .filter(User.referred_by_id == user.id, Subscription.is_active == True, Subscription.end_date > now)
+        .count()
+    ) if getattr(user, 'id', None) else 0
 
     return {
         'required': REFERRALS_REQUIRED,
         'count': count,
+        'referrals_count': count,
         'remaining': max(0, REFERRALS_REQUIRED - count),
         'ref_link': ref_link,
+        'web_ref_link': web_ref_link,
         'share_url': share_url,
         'unlocked': count >= REFERRALS_REQUIRED,
+        'commission_percent': int(commission_percent) if commission_percent.is_integer() else commission_percent,
+        'min_withdrawal': int(min_withdrawal) if min_withdrawal.is_integer() else min_withdrawal,
+        'balance': affiliate_balance,
+        'affiliate_balance': affiliate_balance,
+        'earned_total': affiliate_earned_total,
+        'affiliate_earned_total': affiliate_earned_total,
+        'active_refs': active_refs,
+        'rewards': rewards,
+        'rewards_history': rewards,
+        'withdrawals': withdrawals,
+        'withdrawals_history': withdrawals,
     }
 
 
@@ -269,6 +308,151 @@ def register_routes(flask_app):
     def faq():
         return render_template('faq.html', support_info=_support_contacts())
 
+    @flask_app.route('/r/<ref_code>')
+    def referral_landing(ref_code):
+        ref_code = (ref_code or '').strip()
+        session['ref_code'] = ref_code
+        resp = redirect(url_for('index', ref=ref_code, auth='register'))
+        resp.set_cookie('ref_code', ref_code, max_age=60*60*24*30)  # 30 days
+        return resp
+
+    @flask_app.route('/affiliate')
+    @flask_app.route('/partner')
+    def affiliate_page():
+        commission_percent = AppSetting.get('AFFILIATE_COMMISSION_PERCENT', '75')
+        min_withdrawal = AppSetting.get('MIN_WITHDRAWAL_AMOUNT', '100')
+        ref_info = _referral_info(current_user) if current_user.is_authenticated else None
+        return render_template(
+            'affiliate.html',
+            commission_percent=commission_percent,
+            min_withdrawal=min_withdrawal,
+            ref_info=ref_info,
+            support_info=_support_contacts()
+        )
+
+    @flask_app.route('/affiliate/withdraw', methods=['POST'])
+    @login_required
+    def affiliate_withdraw():
+        amount_raw = (request.form.get('amount') or '0').strip().replace(',', '.')
+        payout_method = (request.form.get('payout_method') or '').strip().lower()
+        payout_details = (request.form.get('payout_details') or '').strip()
+
+        try:
+            amount = float(amount_raw)
+        except ValueError:
+            flash('Пожалуйста, укажите корректную сумму для вывода.', 'danger')
+            return redirect(url_for('dashboard') + '#affiliate-program')
+
+        user_balance = current_user.affiliate_balance or 0.0
+
+        if amount <= 0:
+            flash('Сумма вывода должна быть больше нуля.', 'danger')
+            return redirect(url_for('dashboard') + '#affiliate-program')
+
+        # Option: Pay own subscription directly from affiliate balance
+        if payout_method == 'balance_sub':
+            plan_id = request.form.get('plan_id', '1_month')
+            plan = PLANS.get(plan_id, PLANS['1_month'])
+            required_price = float(plan['price'])
+
+            if user_balance < required_price:
+                flash(f'Для оплаты тарифа "{plan["name"]}" необходимо {required_price} ₽ (ваш баланс: {user_balance:.2f} ₽).', 'danger')
+                return redirect(url_for('dashboard') + '#affiliate-program')
+
+            current_user.affiliate_balance = round(user_balance - required_price, 2)
+            
+            # Create completed withdrawal record for ledger
+            req_rec = WithdrawalRequest(
+                user_id=current_user.id,
+                amount=required_price,
+                payout_method='balance_sub',
+                payout_details=f'Продление подписки: {plan["name"]}',
+                status='completed',
+                processed_at=datetime.utcnow(),
+            )
+            db.session.add(req_rec)
+
+            # Extend or create subscription
+            days = plan['days']
+            sub = current_user.active_subscription() or current_user.latest_subscription()
+            if sub and sub.is_active and not sub.is_expired():
+                sub.end_date = sub.end_date + timedelta(days=days)
+                sub.plan = plan_id
+                sub.payment_status = 'paid'
+            else:
+                sub_token = uuid.uuid4().hex
+                sub = Subscription(
+                    user_id=current_user.id,
+                    plan=plan_id,
+                    sub_token=sub_token,
+                    end_date=datetime.utcnow() + timedelta(days=days),
+                    config_link=f"{get_base_url()}/sub/{sub_token}",
+                    is_active=True,
+                    payment_status='paid',
+                )
+                db.session.add(sub)
+
+            db.session.commit()
+            flash(f'🎉 Подписка успешно оплачена с партнёрского баланса! Добавлено +{days} дней.', 'success')
+            return redirect(url_for('dashboard'))
+
+        # Standard withdrawal request
+        min_payout_str = AppSetting.get('MIN_WITHDRAWAL_AMOUNT') or current_app.config.get('MIN_WITHDRAWAL_AMOUNT', '100')
+        try:
+            min_payout = float(min_payout_str)
+        except ValueError:
+            min_payout = 100.0
+
+        if amount < min_payout:
+            flash(f'Минимальная сумма для вывода составляет {min_payout:.0f} ₽.', 'warning')
+            return redirect(url_for('dashboard') + '#affiliate-program')
+
+        if amount > user_balance:
+            flash(f'Недостаточно средств на партнёрском балансе (доступно {user_balance:.2f} ₽).', 'danger')
+            return redirect(url_for('dashboard') + '#affiliate-program')
+
+        if not payout_details:
+            flash('Пожалуйста, укажите реквизиты для выплаты (номер карты, телефон СБП или кошелек).', 'warning')
+            return redirect(url_for('dashboard') + '#affiliate-program')
+
+        current_user.affiliate_balance = round(user_balance - amount, 2)
+        withdraw_req = WithdrawalRequest(
+            user_id=current_user.id,
+            amount=amount,
+            payout_method=payout_method,
+            payout_details=payout_details,
+            status='pending',
+        )
+        db.session.add(withdraw_req)
+        db.session.commit()
+
+        # Notify admins
+        try:
+            import app.bot as bot_module
+            if bot_module.ADMIN_IDS and bot_module.bot_app and bot_module.bot_app.bot:
+                import asyncio
+                import html
+                admin_text = (
+                    f"💸 <b>Новая заявка на вывод средств (Партнёрка)!</b>\n\n"
+                    f"👤 Партнёр: <b>{html.escape(current_user.username)}</b> (ID: {current_user.id})\n"
+                    f"💰 Сумма: <b>{amount} ₽</b>\n"
+                    f"💳 Способ: <b>{html.escape(withdraw_req.method_label())}</b>\n"
+                    f"📝 Реквизиты: <code>{html.escape(payout_details)}</code>\n\n"
+                    f"🔗 Управление: {get_base_url()}/admin#withdrawals"
+                )
+                loop = getattr(bot_module.bot_app, '_custom_loop', None)
+                if loop and loop.is_running():
+                    for a_id in bot_module.ADMIN_IDS:
+                        asyncio.run_coroutine_threadsafe(
+                            bot_module.bot_app.bot.send_message(chat_id=a_id, text=admin_text, parse_mode='HTML'),
+                            loop
+                        )
+        except Exception as e:
+            print(f"[Affiliate] Admin notify error: {e}")
+
+        flash(f'✅ Заявка на вывод {amount:.2f} ₽ успешно принята в обработку! Выплата поступит в ближайшее время.', 'success')
+        return redirect(url_for('dashboard') + '#affiliate-program')
+
     @flask_app.route('/register', methods=['POST'])
     def register():
         username = (request.form.get('username') or '').strip()
@@ -301,6 +485,9 @@ def register_routes(flask_app):
                 flash('Пользователь с такой почтой уже зарегистрирован', 'danger')
                 return redirect(url_for('index', auth='register'))
 
+        ref_code = (request.form.get('ref_code') or session.get('ref_code') or request.cookies.get('ref_code') or '').strip()
+        referrer = User.query.filter_by(ref_code=ref_code).first() if ref_code else None
+
         user = User(
             username=username,
             email=email if email else None,
@@ -308,11 +495,22 @@ def register_routes(flask_app):
             telegram_verified=False,
             link_code=uuid.uuid4().hex[:12],
             login_token=uuid.uuid4().hex,
+            ref_code=uuid.uuid4().hex[:10],
+            referred_by_id=referrer.id if referrer else None,
             reg_ip=_client_ip(),
         )
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
+
+        if referrer:
+            ref_record = Referral(
+                referrer_id=referrer.id,
+                invited_telegram_id=0,
+                invited_user_id=user.id,
+            )
+            db.session.add(ref_record)
+            db.session.commit()
 
         # Automatically provision 3-day free trial on site registration
         sub, _ = grant_trial(user, ip=_client_ip(), days=TRIAL_DAYS)
@@ -943,6 +1141,8 @@ def register_routes(flask_app):
 
         payments_list = Payment.query.order_by(Payment.created_at.desc()).limit(50).all()
         configs_list = Config.query.order_by(Config.is_working.desc(), Config.latency_ms.asc()).limit(100).all()
+        withdrawals_list = WithdrawalRequest.query.order_by(WithdrawalRequest.created_at.desc()).limit(100).all()
+        affiliate_rewards_list = AffiliateReward.query.order_by(AffiliateReward.created_at.desc()).limit(100).all()
 
         # 7-day signup trend
         signup_trend = []
@@ -956,6 +1156,8 @@ def register_routes(flask_app):
         support_contacts = _support_contacts()
         required_channel = AppSetting.get('REQUIRED_CHANNEL') or current_app.config.get('REQUIRED_CHANNEL', '')
         required_channel_url = AppSetting.get('REQUIRED_CHANNEL_URL') or current_app.config.get('REQUIRED_CHANNEL_URL', '')
+        affiliate_commission_percent = AppSetting.get('AFFILIATE_COMMISSION_PERCENT') or current_app.config.get('AFFILIATE_COMMISSION_PERCENT', '75')
+        min_withdrawal_amount = AppSetting.get('MIN_WITHDRAWAL_AMOUNT') or current_app.config.get('MIN_WITHDRAWAL_AMOUNT', '100')
 
         stats = {
             'total_users': total_users,
@@ -969,6 +1171,9 @@ def register_routes(flask_app):
             'dead_configs': max(0, total_configs - working_configs),
             'proto_stats': proto_stats,
             'signup_trend': signup_trend,
+            'pending_withdrawals': WithdrawalRequest.query.filter_by(status='pending').count(),
+            'total_affiliate_paid': sum(w.amount for w in WithdrawalRequest.query.filter_by(status='completed').all()),
+            'total_affiliate_rewards': sum(r.reward_amount for r in AffiliateReward.query.all()),
         }
 
         return render_template(
@@ -977,6 +1182,10 @@ def register_routes(flask_app):
             users=users_list,
             payments=payments_list,
             configs=configs_list,
+            withdrawals=withdrawals_list,
+            affiliate_rewards=affiliate_rewards_list,
+            affiliate_commission_percent=affiliate_commission_percent,
+            min_withdrawal_amount=min_withdrawal_amount,
             yoomoney_receiver=yoomoney_receiver,
             yoomoney_token=yoomoney_token,
             yoomoney_secret=yoomoney_secret,
@@ -1144,6 +1353,69 @@ def register_routes(flask_app):
         flash(f'Платёж #{payment.id} вручную подтверждён и подписка активирована.', 'success')
         return redirect(url_for('admin_dashboard') + '#payments')
 
+    @flask_app.route('/admin/withdraw/<int:withdraw_id>/approve', methods=['POST'])
+    @admin_required
+    def admin_approve_withdrawal(withdraw_id):
+        w_req = WithdrawalRequest.query.get_or_404(withdraw_id)
+        if w_req.status == 'completed':
+            flash('Заявка уже была подтверждена ранее.', 'info')
+            return redirect(url_for('admin_dashboard') + '#withdrawals')
+
+        w_req.status = 'completed'
+        w_req.processed_at = datetime.utcnow()
+        w_req.admin_comment = (request.form.get('comment') or 'Выплачено').strip()
+        db.session.commit()
+
+        # Notify user via bot if telegram linked
+        user = w_req.user
+        if user.telegram_id and user.telegram_verified:
+            try:
+                import app.bot as bot_module
+                if bot_module.bot_app and bot_module.bot_app.bot:
+                    import asyncio
+                    loop = getattr(bot_module.bot_app, '_custom_loop', None)
+                    if loop and loop.is_running():
+                        asyncio.run_coroutine_threadsafe(
+                            bot_module.bot_app.bot.send_message(
+                                chat_id=user.telegram_id,
+                                text=(
+                                    f"✅ <b>Выплата партнёрских средств выполнена!</b>\n\n"
+                                    f"💰 Сумма: <b>{w_req.amount} ₽</b>\n"
+                                    f"💳 Способ: <b>{w_req.method_label()}</b>\n"
+                                    f"📝 Реквизиты: <code>{w_req.payout_details}</code>\n\n"
+                                    f"Спасибо за сотрудничество с VoltaVPN! 🚀"
+                                ),
+                                parse_mode='HTML'
+                            ),
+                            loop
+                        )
+            except Exception as e:
+                print(f"[Withdraw] Notify error: {e}")
+
+        flash(f'Заявка #{w_req.id} на сумму {w_req.amount} ₽ подтверждена и отмечена как выплаченная.', 'success')
+        return redirect(url_for('admin_dashboard') + '#withdrawals')
+
+    @flask_app.route('/admin/withdraw/<int:withdraw_id>/reject', methods=['POST'])
+    @admin_required
+    def admin_reject_withdrawal(withdraw_id):
+        w_req = WithdrawalRequest.query.get_or_404(withdraw_id)
+        if w_req.status == 'rejected':
+            flash('Заявка уже отклонена.', 'info')
+            return redirect(url_for('admin_dashboard') + '#withdrawals')
+
+        if w_req.status == 'pending':
+            # Refund balance back to partner
+            user = w_req.user
+            user.affiliate_balance = round((user.affiliate_balance or 0.0) + w_req.amount, 2)
+
+        w_req.status = 'rejected'
+        w_req.processed_at = datetime.utcnow()
+        w_req.admin_comment = (request.form.get('comment') or 'Отклонено администратором').strip()
+        db.session.commit()
+
+        flash(f'Заявка #{w_req.id} отклонена, {w_req.amount} ₽ возвращены на партнёрский баланс пользователя.', 'warning')
+        return redirect(url_for('admin_dashboard') + '#withdrawals')
+
     @flask_app.route('/admin/settings/save', methods=['POST'])
     @admin_required
     def admin_save_settings():
@@ -1154,6 +1426,8 @@ def register_routes(flask_app):
         support_telegram = (request.form.get('support_telegram') or '').strip()
         required_channel = (request.form.get('required_channel') or '').strip()
         required_channel_url = (request.form.get('required_channel_url') or '').strip()
+        affiliate_commission_percent = (request.form.get('affiliate_commission_percent') or '75').strip()
+        min_withdrawal_amount = (request.form.get('min_withdrawal_amount') or '100').strip()
 
         AppSetting.set('YOOMONEY_RECEIVER', yoomoney_receiver, 'YooMoney кошелёк')
         AppSetting.set('YOOMONEY_TOKEN', yoomoney_token, 'YooMoney OAuth токен')
@@ -1162,6 +1436,8 @@ def register_routes(flask_app):
         AppSetting.set('SUPPORT_TELEGRAM', support_telegram, 'Telegram поддержки')
         AppSetting.set('REQUIRED_CHANNEL', required_channel, 'Обязательный канал для ОП')
         AppSetting.set('REQUIRED_CHANNEL_URL', required_channel_url, 'Ссылка на обязательный канал')
+        AppSetting.set('AFFILIATE_COMMISSION_PERCENT', affiliate_commission_percent, 'Процент партнёрского вознаграждения (%)')
+        AppSetting.set('MIN_WITHDRAWAL_AMOUNT', min_withdrawal_amount, 'Минимальная сумма для вывода (₽)')
 
         flash('Настройки успешно сохранены!', 'success')
         return redirect(url_for('admin_dashboard') + '#settings')

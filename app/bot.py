@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-from app.models import User, Subscription, Config, Payment, SupportMessage, AppSetting, Referral, TrialClaim, db
+from app.models import User, Subscription, Config, Payment, SupportMessage, AppSetting, Referral, TrialClaim, AffiliateReward, WithdrawalRequest, db
 from app.payment import create_platega_payment, create_cryptobot_payment, create_yoomoney_payment, check_payment_status
 from app.collector import get_working_configs
 
@@ -146,7 +146,7 @@ def get_main_keyboard(is_admin=False):
         [KeyboardButton("⚡ Подключиться"), KeyboardButton("👤 Моя подписка")],
         [KeyboardButton("💳 Купить / Продлить"), KeyboardButton("📥 QR / Ссылка")],
         [KeyboardButton("📖 Инструкция"), KeyboardButton("❓ Частые вопросы")],
-        [KeyboardButton("🎁 Пригласить друзей"), KeyboardButton("💬 Поддержка")],
+        [KeyboardButton("🎁 Партнёрка 75%"), KeyboardButton("💬 Поддержка")],
         [KeyboardButton("📜 Соглашение & No-Logs"), KeyboardButton("📊 Статус")],
     ]
     if is_admin:
@@ -155,7 +155,8 @@ def get_main_keyboard(is_admin=False):
 
 
 class UserCtx:
-    __slots__ = ('id', 'telegram_id', 'username', 'is_admin', 'login_token', 'ref_code')
+    __slots__ = ('id', 'telegram_id', 'username', 'is_admin', 'login_token', 'ref_code',
+                 'affiliate_balance', 'affiliate_earned_total', 'referred_by_id')
 
     def __init__(self, user):
         self.id = user.id
@@ -164,6 +165,9 @@ class UserCtx:
         self.is_admin = bool(user.is_admin)
         self.login_token = user.login_token
         self.ref_code = getattr(user, 'ref_code', None)
+        self.affiliate_balance = getattr(user, 'affiliate_balance', 0.0) or 0.0
+        self.affiliate_earned_total = getattr(user, 'affiliate_earned_total', 0.0) or 0.0
+        self.referred_by_id = getattr(user, 'referred_by_id', None)
 
 
 class SubCtx:
@@ -191,9 +195,10 @@ class SubCtx:
         return self._time_str
 
 
-def get_or_create_user(telegram_user, auto_trial=True):
+def get_or_create_user(telegram_user, auto_trial=True, referrer_code=None):
     """
     Returns (UserCtx, SubCtx|None). Automatically provisions 3-day free trial on first start.
+    Tracks referrals if referrer_code is provided for new users.
     """
     with flask_app.app_context():
         user = User.query.filter_by(telegram_id=telegram_user.id).first()
@@ -206,6 +211,12 @@ def get_or_create_user(telegram_user, auto_trial=True):
                 uname = f"{base_uname}_{telegram_user.id if idx == 1 else idx}"
                 idx += 1
 
+            referrer_id = None
+            if referrer_code:
+                referrer = User.query.filter_by(ref_code=referrer_code.strip()).first()
+                if referrer and referrer.telegram_id != telegram_user.id:
+                    referrer_id = referrer.id
+
             user = User(
                 telegram_id=telegram_user.id,
                 telegram_verified=True,
@@ -214,10 +225,46 @@ def get_or_create_user(telegram_user, auto_trial=True):
                 login_token=uuid.uuid4().hex,
                 ref_code=uuid.uuid4().hex[:10],
                 is_admin=telegram_user.id in ADMIN_IDS,
+                referred_by_id=referrer_id,
+                affiliate_balance=0.0,
+                affiliate_earned_total=0.0,
             )
             db.session.add(user)
             db.session.commit()
             is_new = True
+
+            if referrer_id:
+                ref_log = Referral(
+                    referrer_id=referrer_id,
+                    referred_user_id=user.id,
+                    bonus_days_given=1,
+                )
+                db.session.add(ref_log)
+                db.session.commit()
+
+                # Notify referrer via Telegram
+                ref_user = User.query.get(referrer_id)
+                if ref_user and ref_user.telegram_id and ref_user.telegram_verified:
+                    try:
+                        if bot_app and bot_app.bot:
+                            loop = getattr(bot_app, '_custom_loop', None)
+                            comm_pct = AppSetting.get('AFFILIATE_COMMISSION_PERCENT') or flask_app.config.get('AFFILIATE_COMMISSION_PERCENT', '75')
+                            notify_msg = (
+                                f"🎉 <b>Новый реферал в VoltaVPN!</b>\n\n"
+                                f"Пользователь <b>@{esc(uname)}</b> зарегистрировался по вашей ссылке.\n"
+                                f"Вы будете получать <b>{comm_pct}%</b> с каждой его оплаты подписки!"
+                            )
+                            if loop and loop.is_running():
+                                asyncio.run_coroutine_threadsafe(
+                                    bot_app.bot.send_message(
+                                        chat_id=ref_user.telegram_id,
+                                        text=notify_msg,
+                                        parse_mode='HTML'
+                                    ),
+                                    loop
+                                )
+                    except Exception as e:
+                        print(f"[Bot] Referral notify error: {e}")
         else:
             if not user.telegram_verified:
                 user.telegram_verified = True
@@ -264,6 +311,43 @@ def get_or_create_user(telegram_user, auto_trial=True):
                 db.session.commit()
 
         return UserCtx(user), (SubCtx(sub) if sub else None)
+
+
+def notify_admins_withdrawal(w_req):
+    """
+    Sends notification to Telegram bot admins about a new withdrawal request.
+    """
+    if not bot_app or not ADMIN_IDS:
+        return
+
+    notify_text = (
+        f"💸 <b>Новая заявка на вывод #{w_req.id}!</b>\n\n"
+        f"👤 <b>Пользователь:</b> {esc(w_req.user.username if w_req.user else 'User #' + str(w_req.user_id))}\n"
+        f"💰 <b>Сумма:</b> <b>{w_req.amount} ₽</b>\n"
+        f"💳 <b>Способ:</b> {esc(w_req.method_label())}\n"
+        f"📝 <b>Реквизиты:</b> <code>{esc(w_req.payout_details)}</code>\n\n"
+        f"Перейдите в веб-панель для обработки:\n{esc(base_url())}/admin#withdrawals"
+    )
+
+    async def _send():
+        for admin_id in ADMIN_IDS:
+            try:
+                await bot_app.bot.send_message(
+                    chat_id=admin_id,
+                    text=notify_text,
+                    parse_mode='HTML'
+                )
+            except Exception as e:
+                print(f"[Bot] Failed to send withdrawal alert to {admin_id}: {e}")
+
+    try:
+        loop = getattr(bot_app, '_custom_loop', None)
+        if loop and loop.is_running():
+            asyncio.run_coroutine_threadsafe(_send(), loop)
+        else:
+            threading.Thread(target=lambda: asyncio.run(_send()), daemon=True).start()
+    except Exception as e:
+        print(f"[Bot] Error dispatching withdrawal alert: {e}")
 
 
 def notify_admins_support(msg):
@@ -458,11 +542,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bot_inst = context.bot if context else (bot_app.bot if bot_app else None)
     is_admin = user.id in ADMIN_IDS
 
+    ref_code = None
+    if args and args[0].startswith("ref_"):
+        ref_code = args[0].replace("ref_", "").strip()
+
     # Check mandatory channel subscription
     if not is_admin:
         is_subbed = await is_user_subscribed_to_channel(user.id, bot_inst)
         if not is_subbed:
-            get_or_create_user(user, auto_trial=False)
+            get_or_create_user(user, auto_trial=False, referrer_code=ref_code)
             channel, url = get_required_channel()
             await update.message.reply_text(
                 get_channel_gate_text(channel, url),
@@ -535,7 +623,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return
 
-    db_user, sub = get_or_create_user(user, auto_trial=True)
+    db_user, sub = get_or_create_user(user, auto_trial=True, referrer_code=ref_code)
     is_admin = db_user.is_admin or user.id in ADMIN_IDS
 
     sub_status = "🟢 <b>Активна (3 дня бесплатно)</b>" if sub and not sub.is_expired() else "⚪ Нет активной подписки"
@@ -1233,7 +1321,10 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode='HTML')
 
 
-async def invite_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def partner_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    VoltaVPN Partner & Affiliate program overview in Telegram bot.
+    """
     user = update.effective_user
     bot_inst = context.bot if context else (bot_app.bot if bot_app else None)
     if user.id not in ADMIN_IDS and not await is_user_subscribed_to_channel(user.id, bot_inst):
@@ -1246,22 +1337,231 @@ async def invite_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    db_user, sub = get_or_create_user(user, auto_trial=True)
-    ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{db_user.ref_code}" if BOT_USERNAME else f"{base_url()}/r/{db_user.ref_code}"
+    db_user, sub = get_or_create_user(user, auto_trial=False)
+
+    with flask_app.app_context():
+        curr_user = User.query.get(db_user.id)
+        balance = round(curr_user.affiliate_balance or 0.0, 2)
+        total_earned = round(curr_user.affiliate_earned_total or 0.0, 2)
+        ref_count = User.query.filter_by(referred_by_id=curr_user.id).count()
+        if ref_count == 0:
+            ref_count = Referral.query.filter_by(referrer_id=curr_user.id).count()
+        commission_rate = AppSetting.get('AFFILIATE_COMMISSION_PERCENT') or flask_app.config.get('AFFILIATE_COMMISSION_PERCENT', '75')
+        min_withdrawal = AppSetting.get('MIN_WITHDRAWAL_AMOUNT') or flask_app.config.get('MIN_WITHDRAWAL_AMOUNT', '100')
+        ref_code = curr_user.ref_code
+        login_token = curr_user.login_token
+
+    ref_link = f"https://t.me/{BOT_USERNAME}?start=ref_{ref_code}" if BOT_USERNAME else f"{base_url()}/r/{ref_code}"
+    web_ref_link = f"{base_url()}/r/{ref_code}"
+    web_cabinet_url = f"{base_url()}/tg-login/{login_token}" if login_token else f"{base_url()}/affiliate"
 
     from urllib.parse import quote
-    share_text = "⚡ Быстрый и надежный VPN для России — VoltaVPN! Забирай доступ 👇"
+    share_text = "⚡ Быстрый и надежный VPN без блокировок — VoltaVPN! Попробуй 3 дня бесплатно 👇"
     share_url = f"https://t.me/share/url?url={quote(ref_link, safe='')}&text={quote(share_text, safe='')}"
 
     keyboard = [
-        [InlineKeyboardButton("📤 Поделиться с друзьями", url=share_url)],
+        [InlineKeyboardButton("📤 Поделиться ссылкой", url=share_url)],
+        [
+            InlineKeyboardButton("💸 Заказать вывод", callback_data="affiliate_withdraw_menu"),
+            InlineKeyboardButton("🔄 Оплатить подписку с баланса", callback_data="affiliate_pay_sub"),
+        ],
+        [InlineKeyboardButton("🌐 Партнёрский кабинет на сайте", url=web_cabinet_url)],
     ]
+
     msg = (
-        f"🎁 <b>Реферальная программа VoltaVPN</b>\n\n"
-        f"Делитесь вашей персональной ссылкой с друзьями:\n"
-        f"<code>{esc(ref_link)}</code>"
+        f"🤝 <b>Партнёрская программа VoltaVPN</b>\n"
+        f"<i>«Приглашай друзей и зарабатывай с VoltaVPN»</i>\n\n"
+        f"💰 <b>Ваш доход:</b> <b>{commission_rate}%</b> с КАЖДОЙ оплаты приглашённого пользователя навсегда!\n\n"
+        f"📊 <b>Ваша статистика:</b>\n"
+        f"• Приглашено пользователей: <b>{ref_count}</b>\n"
+        f"• Всего заработано: <b>{total_earned:.2f} ₽</b>\n"
+        f"• Доступно к выводу: <b>{balance:.2f} ₽</b> (мин. {min_withdrawal} ₽)\n\n"
+        f"🔗 <b>Ссылка для Telegram:</b>\n<code>{esc(ref_link)}</code>\n\n"
+        f"🌐 <b>Ссылка для браузера / соцсетей:</b>\n<code>{esc(web_ref_link)}</code>\n\n"
+        f"💳 <b>Способы вывода:</b> СБП (Система быстрых платежей), Карты РФ, ЮMoney, USDT TRC-20, TON, а также мгновенная оплата подписки со скидкой!"
     )
-    await update.message.reply_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await update.message.reply_text(msg, parse_mode='HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def invite_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await partner_command(update, context)
+
+
+async def affiliate_withdraw_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user = update.effective_user
+
+    with flask_app.app_context():
+        db_user = User.query.filter_by(telegram_id=user.id).first()
+        balance = round(db_user.affiliate_balance or 0.0, 2) if db_user else 0.0
+        min_withdrawal = float(AppSetting.get('MIN_WITHDRAWAL_AMOUNT') or flask_app.config.get('MIN_WITHDRAWAL_AMOUNT', '100'))
+
+    if balance < min_withdrawal:
+        await query.message.reply_text(
+            f"⚠️ <b>Недостаточно средств для вывода.</b>\n\n"
+            f"• Ваш баланс: <b>{balance:.2f} ₽</b>\n"
+            f"• Минимальная сумма для вывода: <b>{min_withdrawal:.2f} ₽</b>\n\n"
+            f"Приглашайте друзей по вашей реферальной ссылке и получайте 75% с каждой их оплаты!",
+            parse_mode='HTML'
+        )
+        return
+
+    keyboard = [
+        [InlineKeyboardButton("⚡ СБП (Номер телефона + Банк)", callback_data="withdraw_method_sbp")],
+        [InlineKeyboardButton("💳 Карта РФ (МИР / Visa / MC)", callback_data="withdraw_method_card")],
+        [InlineKeyboardButton("🟣 ЮMoney", callback_data="withdraw_method_yoomoney")],
+        [InlineKeyboardButton("💵 USDT (TRC-20)", callback_data="withdraw_method_usdt")],
+        [InlineKeyboardButton("💎 TON Coin", callback_data="withdraw_method_ton")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="partner_menu")],
+    ]
+
+    await query.edit_message_text(
+        f"💸 <b>Вывод партнёрских средств</b>\n\n"
+        f"• Доступно к выводу: <b>{balance:.2f} ₽</b>\n"
+        f"• Комиссия сервиса: <b>0%</b>\n\n"
+        f"Выберите удобный способ получения выплаты:",
+        parse_mode='HTML',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def affiliate_method_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    method = query.data.replace("withdraw_method_", "")
+
+    method_titles = {
+        'sbp': '⚡ СБП (Система быстрых платежей)',
+        'card': '💳 Банковская карта РФ (МИР, Visa, MC)',
+        'yoomoney': '🟣 ЮMoney кошелёк',
+        'usdt': '💵 USDT (TRC-20)',
+        'ton': '💎 TON (The Open Network)',
+    }
+    title = method_titles.get(method, method.upper())
+
+    context.user_data['withdrawal_flow'] = {'method': method}
+
+    instructions = {
+        'sbp': "Напишите ваш <b>номер телефона и название банка</b> (например: <code>+79991234567 Т-Банк</code>):",
+        'card': "Напишите ваш <b>номер банковской карты</b> (например: <code>2200 1234 5678 9012</code>):",
+        'yoomoney': "Напишите ваш <b>номер кошелька ЮMoney</b> (например: <code>410011234567890</code>):",
+        'usdt': "Напишите ваш <b>адрес USDT в сети TRC-20</b> (например: <code>TXYZ1234567890abcdef...</code>):",
+        'ton': "Напишите ваш <b>TON-адрес кошелька</b> (например: <code>EQB...</code>):",
+    }
+
+    await query.edit_message_text(
+        f"📝 <b>Заявка на вывод через {title}</b>\n\n"
+        f"{instructions.get(method, 'Отправьте ваши реквизиты для получения выплаты:')}\n\n"
+        f"<i>Отправьте реквизиты в ответном сообщении:</i>",
+        parse_mode='HTML',
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Отмена", callback_data="partner_menu")]])
+    )
+
+
+async def affiliate_pay_sub_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user = update.effective_user
+
+    with flask_app.app_context():
+        db_user = User.query.filter_by(telegram_id=user.id).first()
+        balance = round(db_user.affiliate_balance or 0.0, 2) if db_user else 0.0
+
+    keyboard = [
+        [InlineKeyboardButton("1 месяц — 199 ₽ (с баланса)", callback_data="pay_sub_bal_1m")],
+        [InlineKeyboardButton("3 месяца — 499 ₽ (с баланса)", callback_data="pay_sub_bal_3m")],
+        [InlineKeyboardButton("1 год — 1499 ₽ (с баланса)", callback_data="pay_sub_bal_1y")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="partner_menu")],
+    ]
+
+    await query.edit_message_text(
+        f"🔄 <b>Оплата подписки с партнёрского баланса</b>\n\n"
+        f"• Ваш партнёрский баланс: <b>{balance:.2f} ₽</b>\n\n"
+        f"Вы можете моментально продлить вашу подписку VoltaVPN прямо с заработанных средств:",
+        parse_mode='HTML',
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def pay_sub_bal_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user = update.effective_user
+    plan_key = query.data.replace("pay_sub_bal_", "")
+
+    plan_costs = {
+        '1m': {'days': 30, 'price': 199.0, 'title': '1 месяц'},
+        '3m': {'days': 90, 'price': 499.0, 'title': '3 месяца'},
+        '1y': {'days': 365, 'price': 1499.0, 'title': '1 год'},
+    }
+    cfg = plan_costs.get(plan_key)
+    if not cfg:
+        await query.answer("Неверный тариф", show_alert=True)
+        return
+
+    with flask_app.app_context():
+        db_user = User.query.filter_by(telegram_id=user.id).first()
+        if not db_user or (db_user.affiliate_balance or 0.0) < cfg['price']:
+            await query.answer(f"Недостаточно средств. Требуется {cfg['price']} ₽, на балансе {db_user.affiliate_balance if db_user else 0:.2f} ₽", show_alert=True)
+            return
+
+        # Deduct balance
+        db_user.affiliate_balance = round(db_user.affiliate_balance - cfg['price'], 2)
+
+        # Renew or create subscription
+        sub = Subscription.query.filter_by(user_id=db_user.id).order_by(Subscription.created_at.desc()).first()
+        now = datetime.utcnow()
+        if sub and sub.is_active and sub.end_date > now:
+            sub.end_date = sub.end_date + timedelta(days=cfg['days'])
+        elif sub:
+            sub.start_date = now
+            sub.end_date = now + timedelta(days=cfg['days'])
+            sub.is_active = True
+        else:
+            sub_token = uuid.uuid4().hex
+            sub = Subscription(
+                user_id=db_user.id,
+                plan=f"{cfg['days']} days",
+                sub_token=sub_token,
+                start_date=now,
+                end_date=now + timedelta(days=cfg['days']),
+                config_link=f"{base_url()}/sub/{sub_token}",
+                is_active=True,
+                payment_status='paid',
+            )
+            db.session.add(sub)
+
+        w_req = WithdrawalRequest(
+            user_id=db_user.id,
+            amount=cfg['price'],
+            payout_method='balance_sub',
+            payout_details=f"Продление подписки VoltaVPN на {cfg['title']}",
+            status='completed',
+            processed_at=now,
+            admin_comment='Автоматически активировано за счёт партнёрского баланса'
+        )
+        db.session.add(w_req)
+        db.session.commit()
+
+        link = sub_link(sub)
+
+    await query.edit_message_text(
+        f"🎉 <b>Подписка успешно продлена на {cfg['title']}!</b>\n\n"
+        f"С партнёрского баланса списано: <b>{cfg['price']} ₽</b>\n"
+        f"Срок действия: <b>до {sub.end_date.strftime('%d.%m.%Y %H:%M')} UTC</b>\n\n"
+        f"🔗 <b>Ссылка подписки:</b>\n<code>{esc(link)}</code>",
+        parse_mode='HTML',
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("⚡ Подключиться", callback_data="buy_menu"),
+             InlineKeyboardButton("🤝 В партнёрку", callback_data="partner_menu")]
+        ])
+    )
 
 
 async def admin_reply_btn_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1286,6 +1586,50 @@ async def admin_reply_btn_callback(update: Update, context: ContextTypes.DEFAULT
 async def handle_text_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or '').strip()
     user = update.effective_user
+
+    # Handle pending withdrawal requisition submission
+    if context.user_data.get('withdrawal_flow'):
+        flow = context.user_data.pop('withdrawal_flow')
+        method = flow.get('method', 'sbp')
+        payout_details = text
+
+        with flask_app.app_context():
+            db_user = User.query.filter_by(telegram_id=user.id).first()
+            min_withdrawal = float(AppSetting.get('MIN_WITHDRAWAL_AMOUNT') or flask_app.config.get('MIN_WITHDRAWAL_AMOUNT', '100'))
+            balance = round(db_user.affiliate_balance or 0.0, 2) if db_user else 0.0
+
+            if balance < min_withdrawal:
+                await update.message.reply_text(
+                    f"⚠️ <b>Недостаточно средств.</b> Ваш баланс {balance:.2f} ₽ (минимум {min_withdrawal:.2f} ₽).",
+                    parse_mode='HTML'
+                )
+                return
+
+            amount = balance
+            db_user.affiliate_balance = 0.0
+
+            w_req = WithdrawalRequest(
+                user_id=db_user.id,
+                amount=amount,
+                payout_method=method,
+                payout_details=payout_details,
+                status='pending'
+            )
+            db.session.add(w_req)
+            db.session.commit()
+
+            notify_admins_withdrawal(w_req)
+
+        await update.message.reply_text(
+            f"✅ <b>Заявка на вывод #{w_req.id} успешно принята!</b>\n\n"
+            f"💰 <b>Сумма к выплате:</b> {amount:.2f} ₽\n"
+            f"💳 <b>Способ:</b> {w_req.method_label()}\n"
+            f"📝 <b>Реквизиты:</b> <code>{esc(payout_details)}</code>\n\n"
+            f"⏳ Выплаты обрабатываются в течение 1–24 часов. Вы получите автоматическое уведомление после перевода!",
+            parse_mode='HTML',
+            reply_markup=get_main_keyboard(is_admin=db_user.is_admin or user.id in ADMIN_IDS)
+        )
+        return
 
     # If admin was in pending reply mode via button
     if user.id in ADMIN_IDS and context.user_data.get('pending_reply_session'):
@@ -1342,8 +1686,8 @@ async def handle_text_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         await buy_menu_command(update, context)
     elif text == "📥 QR / Ссылка":
         await qr_link_command(update, context)
-    elif text == "🎁 Пригласить друзей":
-        await invite_command(update, context)
+    elif text in ["🎁 Партнёрка 75%", "🎁 Партнёрская программа", "🎁 Пригласить друзей", "Партнёрка", "Партнерка", "Рефералы"]:
+        await partner_command(update, context)
     elif text == "📊 Статус":
         await stats_command(update, context)
     elif text in ["📖 Инструкция", "❓ Инструкция", "Инструкция"]:
@@ -1377,7 +1721,10 @@ def init_bot(app):
     bot_app.add_handler(CommandHandler("web", web_login_command))
     bot_app.add_handler(CommandHandler("cabinet", web_login_command))
     bot_app.add_handler(CommandHandler("dashboard", web_login_command))
-    bot_app.add_handler(CommandHandler("invite", invite_command))
+    bot_app.add_handler(CommandHandler("invite", partner_command))
+    bot_app.add_handler(CommandHandler("partner", partner_command))
+    bot_app.add_handler(CommandHandler("affiliate", partner_command))
+    bot_app.add_handler(CommandHandler("withdraw", partner_command))
     bot_app.add_handler(CommandHandler("buy", buy_menu_command))
     bot_app.add_handler(CommandHandler("stats", stats_command))
     bot_app.add_handler(CommandHandler("admin", admin_command))
@@ -1397,8 +1744,17 @@ def init_bot(app):
     bot_app.add_handler(CallbackQueryHandler(guide_callback, pattern=r"^guide_"))
     bot_app.add_handler(CallbackQueryHandler(faq_command, pattern=r"^faq_main$"))
     bot_app.add_handler(CallbackQueryHandler(faq_callback, pattern=r"^faq_"))
+    bot_app.add_handler(CallbackQueryHandler(partner_command, pattern=r"^partner_menu$"))
+    bot_app.add_handler(CallbackQueryHandler(affiliate_withdraw_menu_callback, pattern=r"^affiliate_withdraw_menu$"))
+    bot_app.add_handler(CallbackQueryHandler(affiliate_method_callback, pattern=r"^withdraw_method_"))
+    bot_app.add_handler(CallbackQueryHandler(affiliate_pay_sub_callback, pattern=r"^affiliate_pay_sub$"))
+    bot_app.add_handler(CallbackQueryHandler(pay_sub_bal_callback, pattern=r"^pay_sub_bal_"))
     bot_app.add_handler(CallbackQueryHandler(admin_reply_btn_callback, pattern=r"^rep_"))
     bot_app.add_handler(CallbackQueryHandler(check_channel_sub_callback, pattern=r"^(check_channel_sub|check_sub)$"))
+    bot_app.add_handler(CallbackQueryHandler(plan_callback, pattern=r"^(plan_|buy_menu|get_qr)"))
+    bot_app.add_handler(CallbackQueryHandler(payment_callback, pattern=r"^pay_"))
+    bot_app.add_handler(CallbackQueryHandler(check_pay_callback, pattern=r"^checkpay_"))
+    bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_buttons))
     bot_app.add_handler(CallbackQueryHandler(plan_callback, pattern=r"^(plan_|buy_menu|get_qr)"))
     bot_app.add_handler(CallbackQueryHandler(payment_callback, pattern=r"^pay_"))
     bot_app.add_handler(CallbackQueryHandler(check_pay_callback, pattern=r"^checkpay_"))

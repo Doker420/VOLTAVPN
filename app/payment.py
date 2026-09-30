@@ -3,7 +3,7 @@ import uuid
 import hashlib
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
-from app.models import Payment, Subscription, AppSetting, db
+from app.models import Payment, Subscription, AppSetting, User, AffiliateReward, Referral, db
 from flask import current_app
 
 PLATEGA_API_URL = "https://app.platega.io"
@@ -344,6 +344,100 @@ def _plan_days(plan_name):
     return days
 
 
+def process_affiliate_commission(payment):
+    """
+    Calculates and awards affiliate commission to the referrer for this paid subscription.
+    Default commission is 75% (configurable in Admin Panel or .env).
+    """
+    try:
+        user = db.session.get(User, payment.user_id)
+        if not user:
+            return
+
+        referrer_id = user.referred_by_id
+        if not referrer_id:
+            # Check Referral table as fallback
+            ref = Referral.query.filter(
+                (Referral.invited_user_id == user.id) |
+                (Referral.invited_telegram_id == user.telegram_id if user.telegram_id else False)
+            ).first()
+            if ref:
+                referrer_id = ref.referrer_id
+                user.referred_by_id = referrer_id
+
+        if not referrer_id:
+            return
+
+        referrer = db.session.get(User, referrer_id)
+        if not referrer or referrer.id == user.id:
+            return
+
+        # Check if this payment was already rewarded
+        existing_reward = AffiliateReward.query.filter_by(payment_id=payment.id).first()
+        if existing_reward:
+            return
+
+        try:
+            percent_str = AppSetting.get('AFFILIATE_COMMISSION_PERCENT') or current_app.config.get('AFFILIATE_COMMISSION_PERCENT', '75')
+            commission_percent = float(percent_str)
+        except Exception:
+            commission_percent = 75.0
+
+        if commission_percent <= 0:
+            return
+
+        reward_amount = round(payment.amount * (commission_percent / 100.0), 2)
+        reward = AffiliateReward(
+            referrer_id=referrer.id,
+            referred_user_id=user.id,
+            payment_id=payment.id,
+            payment_amount=payment.amount,
+            commission_percent=commission_percent,
+            reward_amount=reward_amount,
+        )
+        db.session.add(reward)
+        referrer.affiliate_balance = round((referrer.affiliate_balance or 0.0) + reward_amount, 2)
+        referrer.affiliate_earned_total = round((referrer.affiliate_earned_total or 0.0) + reward_amount, 2)
+        db.session.commit()
+
+        # If referrer has Telegram, send instant notification
+        if referrer.telegram_id and referrer.telegram_verified:
+            try:
+                import app.bot as bot_module
+                if bot_module.bot_app and bot_module.bot_app.bot:
+                    import html
+                    import asyncio
+                    base_url = current_app.config.get('WEBHOOK_URL', 'http://localhost:5000').rstrip('/')
+                    tg_text = (
+                        f"🎉 <b>Партнёрское начисление VoltaVPN!</b>\n\n"
+                        f"👤 Реферал: <b>{html.escape(user.username)}</b>\n"
+                        f"💳 Сумма оплаты: <b>{payment.amount} ₽</b>\n"
+                        f"💰 Начислено партнёрских: <b>+{reward_amount} ₽</b> ({int(commission_percent)}%)\n\n"
+                        f"💵 Доступно к выводу: <b>{referrer.affiliate_balance} ₽</b>\n\n"
+                        f"Вывести средства можно через команду /partner или в личном кабинете на сайте."
+                    )
+                    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                    kb = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("💸 Заказать вывод средств", callback_data="aff_withdraw")],
+                        [InlineKeyboardButton("🌐 Личный кабинет", url=f"{base_url}/dashboard#affiliate-program")],
+                    ])
+                    loop = getattr(bot_module.bot_app, '_custom_loop', None)
+                    if loop and loop.is_running():
+                        asyncio.run_coroutine_threadsafe(
+                            bot_module.bot_app.bot.send_message(
+                                chat_id=referrer.telegram_id,
+                                text=tg_text,
+                                parse_mode='HTML',
+                                reply_markup=kb
+                            ),
+                            loop
+                        )
+            except Exception as e:
+                print(f"[Payment] Referrer notification notice: {e}")
+    except Exception as e:
+        print(f"[Payment] Affiliate processing error: {e}")
+
+
 def activate_paid_subscription(payment):
     """
     Marks the payment paid and extends/creates the user's subscription.
@@ -392,4 +486,8 @@ def activate_paid_subscription(payment):
                 sub.config_link = config_link
 
     db.session.commit()
+
+    # Process 75% affiliate commission for the referrer
+    process_affiliate_commission(payment)
+
     return sub

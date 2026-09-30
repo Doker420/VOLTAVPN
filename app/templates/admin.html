@@ -51,6 +51,11 @@
                 </button>
             </li>
             <li class="nav-item" role="presentation">
+                <button class="nav-link btn-glass-tab px-4 py-2" id="tab-withdrawals-btn" data-bs-toggle="pill" data-bs-target="#tab-withdrawals" type="button" role="tab">
+                    <i class="bi bi-wallet2 me-1 text-emerald"></i> Выплаты & Партнёрка {% if stats.pending_withdrawals %}<span class="badge bg-danger ms-1">{{ stats.pending_withdrawals }}</span>{% endif %}
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
                 <button class="nav-link btn-glass-tab px-4 py-2" id="tab-support-btn" data-bs-toggle="pill" data-bs-target="#tab-support" type="button" role="tab">
                     <i class="bi bi-chat-left-dots-fill me-1 text-cyan"></i> Чат поддержки <span class="badge bg-danger ms-1" id="adminUnreadTotalBadge" style="display:none;">0</span>
                 </button>
@@ -95,6 +100,31 @@
                             <div class="stat-icon" style="background: rgba(139,92,246,0.15); color:#8b5cf6;"><i class="bi bi-hdd-network-fill"></i></div>
                             <div class="stat-value text-white">{{ stats.working_configs }}</div>
                             <div class="text-white-50 small">Рабочих из {{ stats.total_configs }} серверов</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Affiliate Program KPI Cards -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-lg-4">
+                        <div class="admin-stat" style="border-color: rgba(16,185,129,0.3);">
+                            <div class="stat-icon" style="background: rgba(16,185,129,0.15); color:#10b981;"><i class="bi bi-gift-fill"></i></div>
+                            <div class="stat-value text-emerald">{{ stats.total_affiliate_rewards }} ₽</div>
+                            <div class="text-white-50 small">Всего начислено комиссий партнёрам ({{ affiliate_commission_percent }}%)</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg-4">
+                        <div class="admin-stat" style="border-color: rgba(34,211,238,0.3);">
+                            <div class="stat-icon" style="background: rgba(34,211,238,0.15); color:#22d3ee;"><i class="bi bi-wallet2"></i></div>
+                            <div class="stat-value text-volt">{{ stats.total_affiliate_paid }} ₽</div>
+                            <div class="text-white-50 small">Выплачено партнёрам по заявкам</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-4">
+                        <div class="admin-stat" style="border-color: rgba(245,158,11,0.3);">
+                            <div class="stat-icon" style="background: rgba(245,158,11,0.15); color:#f59e0b;"><i class="bi bi-hourglass-split"></i></div>
+                            <div class="stat-value text-warning">{{ stats.pending_withdrawals }}</div>
+                            <div class="text-white-50 small">Заявок на вывод ожидают обработки</div>
                         </div>
                     </div>
                 </div>
@@ -404,7 +434,136 @@
                 </div>
             </div>
 
-            <!-- 5. REAL-TIME SUPPORT CHAT TAB -->
+            <!-- 5. PARTNER WITHDRAWALS & COMMISSIONS TAB -->
+            <div class="tab-pane fade" id="tab-withdrawals" role="tabpanel">
+                <div class="card-glass p-4 mb-4">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+                        <div>
+                            <h5 class="fw-bold text-white mb-1"><i class="bi bi-wallet2 text-emerald me-2"></i>Заявки на вывод средств партнёров</h5>
+                            <p class="text-white-50 small mb-0">Обработка заявок через СБП, Банковские карты РФ, ЮMoney, USDT TRC-20, TON</p>
+                        </div>
+                        <span class="badge badge-neon-indigo">Процент комиссии: {{ affiliate_commission_percent }}%</span>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover align-middle mb-0">
+                            <thead>
+                                <tr class="text-white-50 small text-uppercase">
+                                    <th>#ID</th>
+                                    <th>Партнёр</th>
+                                    <th>Сумма</th>
+                                    <th>Способ вывода</th>
+                                    <th>Реквизиты</th>
+                                    <th>Статус</th>
+                                    <th>Дата заявки</th>
+                                    <th class="text-end">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for w in withdrawals %}
+                                <tr>
+                                    <td class="text-white-50">#{{ w.id }}</td>
+                                    <td>
+                                        <div class="fw-bold text-white">{{ w.user.username if w.user else 'User #' ~ w.user_id }}</div>
+                                        <div class="small text-white-50">
+                                            {% if w.user and w.user.telegram_id %}TG: @{{ w.user.username }} ({{ w.user.telegram_id }}){% else %}Email: {{ w.user.email if w.user else '—' }}{% endif %}
+                                        </div>
+                                    </td>
+                                    <td><span class="fs-6 fw-bold text-emerald">{{ w.amount }} ₽</span></td>
+                                    <td>
+                                        <span class="badge bg-dark border border-glass">{{ w.method_label() }}</span>
+                                    </td>
+                                    <td>
+                                        <code class="text-white user-select-all">{{ w.payout_details }}</code>
+                                        {% if w.admin_comment %}
+                                        <div class="small text-white-50 mt-1"><i>Заметка: {{ w.admin_comment }}</i></div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if w.status == 'completed' %}
+                                        <span class="badge badge-neon-emerald">🟢 Выплачено</span>
+                                        {% elif w.status == 'rejected' %}
+                                        <span class="badge bg-danger">🔴 Отклонено</span>
+                                        {% else %}
+                                        <span class="badge badge-neon-warning">🟡 В обработке</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-white-50 small">{{ w.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                                    <td class="text-end">
+                                        {% if w.status == 'pending' %}
+                                        <div class="d-flex justify-content-end gap-2">
+                                            <form method="POST" action="/admin/withdraw/{{ w.id }}/approve" class="m-0" onsubmit="return confirm('Подтвердить выплату {{ w.amount }} ₽ партнёру {{ w.user.username if w.user else w.user_id }}?');">
+                                                <button type="submit" class="btn btn-glow-volt btn-sm px-2 py-1">
+                                                    <i class="bi bi-check2"></i> Выплачено
+                                                </button>
+                                            </form>
+                                            <form method="POST" action="/admin/withdraw/{{ w.id }}/reject" class="m-0" onsubmit="return confirm('Отклонить заявку? Средства вернутся на баланс пользователя.');">
+                                                <button type="submit" class="btn btn-glass-secondary btn-sm px-2 py-1 text-danger">
+                                                    <i class="bi bi-x"></i> Отклонить
+                                                </button>
+                                            </form>
+                                        </div>
+                                        {% else %}
+                                        <span class="small text-white-50">{{ w.processed_at.strftime('%d.%m %H:%M') if w.processed_at else '—' }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-white-50">
+                                        <i class="bi bi-inbox fs-3 d-block mb-2"></i> Заявок на вывод пока нет
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Affiliate Rewards History Table -->
+                <div class="card-glass p-4">
+                    <div class="d-flex align-items-center justify-content-between mb-4">
+                        <h5 class="fw-bold text-white mb-0"><i class="bi bi-clock-history text-volt me-2"></i>История начислений партнёрского дохода</h5>
+                        <span class="small text-white-50">Последние 100 начислений</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover align-middle mb-0">
+                            <thead>
+                                <tr class="text-white-50 small text-uppercase">
+                                    <th>#ID</th>
+                                    <th>Партнёр (Получатель)</th>
+                                    <th>Реферал (Покупатель)</th>
+                                    <th>Сумма покупки</th>
+                                    <th>Ставка</th>
+                                    <th>Начислено партнёру</th>
+                                    <th>Дата</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in affiliate_rewards %}
+                                <tr>
+                                    <td class="text-white-50">#{{ r.id }}</td>
+                                    <td><span class="fw-bold text-white">{{ r.referrer.username if r.referrer else 'User #' ~ r.referrer_id }}</span></td>
+                                    <td><span class="text-white-50">{{ r.referred_user.username if r.referred_user else 'User #' ~ r.referred_user_id }}</span></td>
+                                    <td>{{ r.payment_amount }} ₽</td>
+                                    <td><span class="badge badge-neon-indigo">{{ r.percent }}%</span></td>
+                                    <td><span class="fw-bold text-emerald">+{{ r.reward_amount }} ₽</span></td>
+                                    <td class="text-white-50 small">{{ r.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-white-50">
+                                        Начислений пока нет
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. REAL-TIME SUPPORT CHAT TAB -->
             <div class="tab-pane fade" id="tab-support" role="tabpanel">
                 <div class="card-glass p-0 overflow-hidden" style="min-height: 600px;">
                     <div class="row g-0">
@@ -505,6 +664,34 @@
                             </div>
                         </div>
 
+                        <!-- Partner & Affiliate Program Settings -->
+                        <div class="p-4 rounded-4 bg-dark border border-glass mb-4">
+                            <h6 class="fw-bold text-white mb-2"><i class="bi bi-gift-fill text-emerald me-2"></i>Партнёрская программа (Реферальные отчисления)</h6>
+                            <p class="small text-white-50 mb-3">
+                                Настройка процента отчислений партнёрам за оплату подписок приглашёнными пользователями и минимальной суммы для вывода.
+                            </p>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-white-50 small">Процент вознаграждения партнёра (%)</label>
+                                    <div class="input-group">
+                                        <input type="number" step="1" min="1" max="100" name="affiliate_commission_percent" value="{{ affiliate_commission_percent }}" class="form-control auth-input text-white" placeholder="75" required>
+                                        <span class="input-group-text bg-dark border border-glass text-white">%</span>
+                                    </div>
+                                    <div class="form-text text-white-50 small">По умолчанию: 75% с каждой оплаты.</div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label text-white-50 small">Минимальная сумма для вывода (₽)</label>
+                                    <div class="input-group">
+                                        <input type="number" step="1" min="10" name="min_withdrawal_amount" value="{{ min_withdrawal_amount }}" class="form-control auth-input text-white" placeholder="100" required>
+                                        <span class="input-group-text bg-dark border border-glass text-white">₽</span>
+                                    </div>
+                                    <div class="form-text text-white-50 small">Минимальный баланс для подачи заявки на вывод.</div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Support Contacts Settings -->
                         <div class="p-4 rounded-4 bg-dark border border-glass mb-4">
                             <h6 class="fw-bold text-white mb-2"><i class="bi bi-headset text-volt me-2"></i>Контакты службы поддержки</h6>
@@ -573,6 +760,8 @@ document.addEventListener('DOMContentLoaded', function() {
         bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-payments-btn')).show();
     } else if (hash === '#configs') {
         bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-configs-btn')).show();
+    } else if (hash === '#withdrawals') {
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-withdrawals-btn')).show();
     } else if (hash === '#support') {
         bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-support-btn')).show();
         loadAdminChats();
