@@ -561,6 +561,11 @@ def add_custom_config(content, protocol=None, country_code=None, is_working=None
             )
             db.session.add(cfg)
         db.session.commit()
+        # save_configs_to_repo() performs additional session work. Refresh and
+        # detach the returned row first so callers (including the admin route)
+        # can safely read cfg.protocol/cfg.country after that work completes.
+        db.session.refresh(cfg)
+        db.session.expunge(cfg)
         save_configs_to_repo()
         return cfg, None
 
