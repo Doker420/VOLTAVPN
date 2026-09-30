@@ -137,6 +137,23 @@ def make_vless_uri(inbound, panel_host):
         })
         if server_names:
             params["sni"] = server_names[0]
+        # Xray 25.7+/3X-UI 3.8 can use custom SpiderX and optional
+        # post-quantum ML-DSA verification. Both are client-side values and
+        # must be preserved in the share link; omitting SpiderX can make the
+        # server accept TCP and immediately close the Reality handshake.
+        spider_x = reality_settings.get("spiderX") or reality.get("spiderX")
+        if spider_x:
+            params["spx"] = spider_x
+        mldsa_verify = reality_settings.get("mldsa65Verify") or reality.get("mldsa65Verify")
+        if mldsa_verify:
+            params["pqv"] = mldsa_verify
+        support_mlkem = (
+            reality_settings.get("supportX25519Mlkem768")
+            or reality_settings.get("supportX25519MLKEM768")
+            or reality.get("supportX25519Mlkem768")
+        )
+        if support_mlkem:
+            params["support-x25519mlkem768"] = "true"
         dest = reality.get("dest") or reality_settings.get("dest")
         if dest:
             # dest is server-side only; it must not be copied as a client URI field.
