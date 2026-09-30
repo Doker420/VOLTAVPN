@@ -224,7 +224,12 @@ def extract_sni_and_tls(uri, proto):
         qs = parse_qs(parsed.query)
         sni = qs.get('sni', [None])[0] or qs.get('host', [None])[0] or qs.get('serverName', [None])[0] or qs.get('peer', [None])[0]
         sec = (qs.get('security', [''])[0] or '').lower()
-        is_tls = sec in ['tls', 'reality'] or proto in ['trojan', 'hysteria2', 'hy2']
+        # Reality is not ordinary HTTPS/TLS: its handshake contains a special
+        # Reality proof. A generic TLS probe sends the wrong handshake and can
+        # produce "400 Bad Request: plain HTTP request was sent to HTTPS port"
+        # (or mark a perfectly valid Reality node as dead). For Reality we only
+        # measure TCP reachability here; the VPN client performs the real proof.
+        is_tls = sec == 'tls' or proto in ['trojan', 'hysteria2', 'hy2']
         return sni, is_tls
     except Exception:
         return None, False
