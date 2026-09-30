@@ -195,29 +195,85 @@ body {
     box-shadow: 0 0 20px rgba(99, 102, 241, 0.25);
 }
 
-/* Form Inputs & Auth Modal High-Contrast Styling */
-.auth-input, .form-control-dark {
+/* Global Form Inputs & High-Contrast Styling */
+.form-control,
+.form-select,
+.auth-input,
+.copy-field,
+.form-control-dark,
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="number"],
+input[type="url"],
+input[type="tel"],
+input[type="search"],
+select,
+textarea {
+    background-color: #0f172a !important;
     background: #0f172a !important;
     border: 1.5px solid rgba(148, 163, 184, 0.35) !important;
     color: #ffffff !important;
     font-size: 0.95rem !important;
     font-weight: 500 !important;
     border-radius: 12px !important;
-    padding: 12px 16px !important;
+    padding: 10px 14px !important;
     transition: all 0.2s ease-in-out !important;
 }
 
-.auth-input::placeholder, .form-control-dark::placeholder {
+.form-control::placeholder,
+.form-select::placeholder,
+.auth-input::placeholder,
+.copy-field::placeholder,
+.form-control-dark::placeholder,
+input::placeholder,
+textarea::placeholder {
     color: #94a3b8 !important;
     opacity: 0.85 !important;
 }
 
-.auth-input:focus, .form-control-dark:focus {
+.form-control:focus,
+.form-select:focus,
+.auth-input:focus,
+.copy-field:focus,
+.form-control-dark:focus,
+input:focus,
+select:focus,
+textarea:focus {
+    background-color: #1e293b !important;
     background: #1e293b !important;
     border-color: #38bdf8 !important;
     box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.25) !important;
     color: #ffffff !important;
     outline: none !important;
+}
+
+/* Select dropdown options fix (Chrome/Safari/Firefox/Windows/macOS) */
+select option,
+.form-select option {
+    background-color: #0f172a !important;
+    background: #0f172a !important;
+    color: #ffffff !important;
+    padding: 10px 14px !important;
+}
+
+select option:hover,
+select option:focus,
+select option:checked,
+.form-select option:checked {
+    background-color: #1e293b !important;
+    background: #1e293b !important;
+    color: #38bdf8 !important;
+}
+
+/* Input Group Addon (e.g. currency, %, search icon) */
+.input-group-text {
+    background-color: #1e293b !important;
+    background: #1e293b !important;
+    border: 1.5px solid rgba(148, 163, 184, 0.35) !important;
+    color: #e2e8f0 !important;
+    border-radius: 12px !important;
+    font-weight: 600 !important;
 }
 
 .auth-label {
@@ -231,13 +287,97 @@ body {
 }
 
 /* Copy Field */
-.copy-field {
-    background: rgba(10, 11, 16, 0.8);
-    border: 1px solid var(--border-glass);
-    color: var(--accent-emerald);
-    font-family: monospace;
-    font-size: 0.95rem;
-    border-radius: 12px;
+.copy-field,
+input.copy-field,
+textarea.copy-field {
+    background-color: #090d16 !important;
+    background: #090d16 !important;
+    border: 1.5px solid rgba(56, 189, 248, 0.35) !important;
+    color: #38bdf8 !important;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Roboto Mono', monospace !important;
+    font-size: 0.92rem !important;
+    font-weight: 500 !important;
+    border-radius: 12px !important;
+}
+
+.copy-field:focus {
+    background-color: #0f172a !important;
+    background: #0f172a !important;
+    border-color: #38bdf8 !important;
+    color: #ffffff !important;
+}
+
+/* Accordion Dark Theme (Fixes light blue/white expanded background) */
+.accordion-item {
+    background-color: rgba(18, 22, 34, 0.6) !important;
+    border: 1px solid var(--border-glass) !important;
+    color: #ffffff !important;
+}
+
+.accordion-button {
+    background-color: rgba(15, 23, 42, 0.7) !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: rgba(30, 41, 59, 0.95) !important;
+    color: #38bdf8 !important;
+    box-shadow: none !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.accordion-button::after {
+    filter: invert(1) brightness(2) !important;
+}
+
+.accordion-body {
+    background-color: rgba(11, 15, 25, 0.75) !important;
+    color: #e2e8f0 !important;
+}
+
+/* Modal Dark High Contrast */
+.modal-content {
+    background-color: #0d121f !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7) !important;
+}
+
+.modal-header, .modal-footer {
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Table Dark High Contrast */
+.table, .admin-table {
+    color: #e2e8f0 !important;
+    --bs-table-bg: transparent !important;
+    --bs-table-color: #e2e8f0 !important;
+}
+
+.table td, .table th, .admin-table td, .admin-table th {
+    color: #e2e8f0 !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    background-color: transparent !important;
+}
+
+/* Dropdown Menu Dark Theme */
+.dropdown-menu, .dropdown-menu-dark {
+    background-color: #0f172a !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    color: #ffffff !important;
+    border-radius: 14px !important;
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dropdown-item {
+    color: #e2e8f0 !important;
+}
+
+.dropdown-item:hover, .dropdown-item:focus {
+    background-color: #1e293b !important;
+    color: #38bdf8 !important;
 }
 
 /* Footer */
