@@ -567,6 +567,7 @@
                                 <tr>
                                     <td class="text-white-50">#{{ c.id }}</td>
                                     <td>
+                                        {% if c.is_primary %}<span class="badge bg-warning text-dark mb-1">⭐ ОСНОВНОЙ</span><br>{% endif %}
                                         <span class="badge badge-neon-indigo text-uppercase">{{ c.protocol }}</span>
                                     </td>
                                     <td>
@@ -592,6 +593,15 @@
                                     </td>
                                     <td class="text-white-50 small">{{ c.checked_at.strftime('%d.%m %H:%M') if c.checked_at else '—' }}</td>
                                     <td>
+                                        {% if not c.is_primary %}
+                                        <form method="POST" action="/admin/configs/{{ c.id }}/primary" class="m-0 d-inline">
+                                            <button type="submit" class="btn btn-sm btn-glass-secondary text-warning p-1 px-2" title="Сделать основным и поставить первым в Автовыбор">
+                                                <i class="bi bi-star"></i>
+                                            </button>
+                                        </form>
+                                        {% else %}
+                                        <span class="text-warning small me-1" title="Приоритетный конфиг"><i class="bi bi-star-fill"></i></span>
+                                        {% endif %}
                                         <form method="POST" action="/admin/configs/{{ c.id }}/delete" class="m-0 d-inline" onsubmit="return confirm('Удалить эту конфигурацию?')">
                                             <button type="submit" class="btn btn-sm btn-glass-secondary text-danger p-1 px-2" title="Удалить">
                                                 <i class="bi bi-trash"></i>

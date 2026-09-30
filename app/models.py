@@ -117,6 +117,8 @@ class Config(db.Model):
     country = db.Column(db.String(64), nullable=True)
     country_code = db.Column(db.String(4), nullable=True)
     is_working = db.Column(db.Boolean, default=True)
+    # Preferred node for the generated АВТОВЫБОР entry. Only one config may be primary.
+    is_primary = db.Column(db.Boolean, default=False, nullable=False)
     source_url = db.Column(db.String(500), nullable=True)
     collected_at = db.Column(db.DateTime, default=datetime.utcnow)
     checked_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -132,6 +134,7 @@ class Config(db.Model):
             'country': self.country,
             'country_code': self.country_code,
             'is_working': self.is_working,
+            'is_primary': self.is_primary,
             'source_url': self.source_url,
             'checked_at': self.checked_at.strftime('%d.%m.%Y %H:%M') if self.checked_at else None,
         }

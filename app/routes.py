@@ -1291,14 +1291,25 @@ def register_routes(flask_app):
         country_code = (request.form.get('country_code') or '').strip()
 
         if single_uri:
-            cfg, err = add_custom_config(single_uri, country_code=country_code)
-            if err:
-                flash(f'Ошибка добавления: {err}', 'danger')
-            else:
-                flash(f'Конфигурация {cfg.protocol.upper()} успешно добавлена ({cfg.country}).', 'success')
+            try:
+                cfg, err = add_custom_config(single_uri, country_code=country_code)
+                if err:
+                    flash(f'Ошибка добавления: {err}', 'danger')
+                else:
+                    flash(f'Конфигурация {cfg.protocol.upper()} успешно добавлена ({cfg.country}).', 'success')
+            except Exception as exc:
+                db.session.rollback()
+                current_app.logger.exception('Failed to add custom config')
+                flash(f'Ошибка добавления конфигурации: {exc}', 'danger')
 
         if batch_text:
-            result = add_batch_configs(batch_text)
+            try:
+                result = add_batch_configs(batch_text)
+            except Exception as exc:
+                db.session.rollback()
+                current_app.logger.exception('Failed to add config batch')
+                result = (0, 0)
+                flash(f'Ошибка импорта конфигураций: {exc}', 'danger')
             count, working = result if isinstance(result, tuple) else (result, result)
             if count == 0:
                 flash('Не удалось распознать конфигурации из введённого текста.', 'warning')
@@ -1315,6 +1326,23 @@ def register_routes(flask_app):
         cfg.checked_at = datetime.utcnow()
         db.session.commit()
         flash(f'Статус конфигурации #{cfg.id} изменён на {"🟢 Рабочий" if cfg.is_working else "🔴 Отключён"}.', 'info')
+        return redirect(url_for('admin_dashboard') + '#configs')
+
+    @flask_app.route('/admin/configs/<int:config_id>/primary', methods=['POST'])
+    @admin_required
+    def admin_set_primary_config(config_id):
+        """Make any config the preferred first entry in АВТОВЫБОР."""
+        cfg = Config.query.get_or_404(config_id)
+        Config.query.filter(Config.id != cfg.id).update({Config.is_primary: False}, synchronize_session=False)
+        cfg.is_primary = True
+        db.session.commit()
+        # Regenerate the local feed immediately; the subscription endpoint is dynamic too.
+        try:
+            from app.collector import save_configs_to_repo
+            save_configs_to_repo()
+        except Exception:
+            current_app.logger.exception('Failed to regenerate config feed')
+        flash(f'Конфигурация #{cfg.id} назначена основной: она будет первой в АВТОВЫБОР и получит приоритет при сканировании.', 'success')
         return redirect(url_for('admin_dashboard') + '#configs')
 
     @flask_app.route('/admin/configs/<int:config_id>/delete', methods=['POST'])

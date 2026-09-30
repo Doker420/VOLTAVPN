@@ -6,6 +6,8 @@ import time
 import base64
 import json
 import subprocess
+import ssl
+import html
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from urllib.parse import urlparse, parse_qs, unquote, quote
@@ -266,7 +268,7 @@ def test_tcp_connection(host, port, timeout=TCP_TIMEOUT, sni=None, is_tls=False)
         return None
 
 
-def rename_node_autoselect(content, protocol, latency=None, code=None):
+def rename_node_autoselect(content, protocol, latency=None, code=None, primary=False):
     """
     Auto-generates the #1 Auto-Select node title for the fastest server in the feed:
         ⚡ VoltaVPN | 🚀 АВТОВЫБОР (Самый быстрый) · 🇩🇪 Германия · 24ms
@@ -275,7 +277,8 @@ def rename_node_autoselect(content, protocol, latency=None, code=None):
     cname = country_name(code)
     c_info = f" · {flag} {cname}" if cname else ""
     ping = f" · {int(latency)}ms" if latency is not None else ""
-    title = f"⚡ {BRAND} | 🚀 АВТОВЫБОР (Самый быстрый){c_info}{ping}"
+    selection_label = "Основной" if primary else "Самый быстрый"
+    title = f"⚡ {BRAND} | 🚀 АВТОВЫБОР ({selection_label}){c_info}{ping}"
 
     try:
         if protocol == 'vmess':
@@ -372,7 +375,10 @@ def parse_configs_from_text(raw_text):
     if not raw_text:
         return []
 
-    text = raw_text.strip()
+    # Admin forms are often filled by copying a link from HTML/email. Decode
+    # entities such as &amp; before parsing the query string; otherwise Reality
+    # parameters become keys like ``amp;fp`` and the stored URI is unusable.
+    text = html.unescape(raw_text).strip()
     found_uris = []
 
     # 1. Try decoding entire text if it is a single base64 payload
@@ -497,7 +503,9 @@ def add_custom_config(content, protocol=None, country_code=None, is_working=None
     Verifies TCP handshake before enabling.
     """
     from flask import current_app
-    content = (content or '').strip()
+    content = html.unescape((content or '').strip())
+    # Remove accidental Markdown emphasis/link delimiters around a pasted URI.
+    content = content.strip('`').strip()
     if not content:
         return None, "Пустая конфигурация"
 
@@ -797,7 +805,11 @@ def get_working_configs(protocol=None, limit=25):
         if protocol:
             query = query.filter(Config.protocol == protocol)
 
-        all_candidates = query.order_by(Config.latency_ms.asc(), Config.checked_at.desc()).limit(150).all()
+        # A manually selected primary node always gets the first scan/feed slot,
+        # while the remaining nodes keep the normal latency ordering.
+        all_candidates = query.order_by(
+            Config.is_primary.desc(), Config.latency_ms.asc(), Config.checked_at.desc()
+        ).limit(150).all()
 
         selected = []
         seen_hosts = {}
@@ -838,7 +850,7 @@ def build_branded_lines(configs):
     # 1. First entry: Auto-Select fastest server
     best = configs[0]
     best_code = getattr(best, 'country_code', None)
-    lines.append(rename_node_autoselect(best.content, best.protocol, best.latency_ms, best_code))
+    lines.append(rename_node_autoselect(best.content, best.protocol, best.latency_ms, best_code, bool(getattr(best, 'is_primary', False))))
 
     # 2. Individual server lines sorted by latency
     counters = {}

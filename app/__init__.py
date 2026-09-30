@@ -74,11 +74,18 @@ def _run_lightweight_migrations():
             except Exception as e:
                 print(f"[Migrate] {col_name} add skipped: {e}")
 
-    # Config geo columns
+    # Config geo/preference columns
     try:
         config_cols = [c['name'] for c in inspector.get_columns('config')]
     except Exception:
         config_cols = []
+    if config_cols and 'is_primary' not in config_cols:
+        try:
+            db.session.execute(text('ALTER TABLE config ADD COLUMN is_primary BOOLEAN DEFAULT 0 NOT NULL'))
+            db.session.commit()
+            print("[Migrate] Added config.is_primary column")
+        except Exception as e:
+            print(f"[Migrate] is_primary add skipped: {e}")
     if config_cols:
         if 'country' not in config_cols:
             try:
