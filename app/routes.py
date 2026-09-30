@@ -236,6 +236,10 @@ def get_base_url():
         if db_url and str(db_url).strip():
             candidate = str(db_url).strip().rstrip('/')
             if not any(localhost in candidate.lower() for localhost in ('localhost', '127.0.0.1', '0.0.0.0')):
+                # Public subscription links must use TLS. An old HTTP value
+                # in the admin settings otherwise gets copied into every QR.
+                if candidate.lower().startswith('http://'):
+                    candidate = 'https://' + candidate[7:]
                 return candidate
     except Exception:
         pass
@@ -244,11 +248,16 @@ def get_base_url():
         scheme = request.headers.get('X-Forwarded-Proto') or request.headers.get('X-Scheme') or request.scheme
         host = request.headers.get('X-Forwarded-Host') or request.host
         if host and not any(lh in host.lower() for lh in ['localhost:5000', '127.0.0.1:5000']):
+            # Reverse proxies sometimes omit X-Forwarded-Proto. Production
+            # subscription URLs should still never downgrade to HTTP.
+            if str(scheme).lower() == 'http' and not any(localhost in host.lower() for localhost in ('localhost', '127.0.0.1', '0.0.0.0')):
+                scheme = 'https'
             return f"{scheme}://{host}".rstrip('/')
 
     env_url = current_app.config.get('WEBHOOK_URL') or os.getenv('WEBHOOK_URL')
     if env_url and not any(lh in env_url.lower() for lh in ['localhost', '127.0.0.1']):
-        return env_url.strip().rstrip('/')
+        env_url = env_url.strip().rstrip('/')
+        return ('https://' + env_url[7:]) if env_url.lower().startswith('http://') else env_url
 
     if has_request_context():
         scheme = request.headers.get('X-Forwarded-Proto') or request.scheme

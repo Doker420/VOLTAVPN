@@ -59,7 +59,11 @@ def base_url():
                 url = flask_app.config.get('WEBHOOK_URL')
     if not url:
         url = os.getenv('WEBHOOK_URL')
-    return (url or 'https://vpn.stas-max.ru').rstrip('/')
+    result = (url or 'https://vpn.stas-max.ru').rstrip('/')
+    # Never publish insecure subscription links in Telegram QR codes.
+    if result.lower().startswith('http://') and not any(host in result.lower() for host in ('localhost', '127.0.0.1', '0.0.0.0')):
+        result = 'https://' + result[7:]
+    return result
 
 
 def sub_link(sub):
