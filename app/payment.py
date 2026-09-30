@@ -8,8 +8,26 @@ from flask import current_app
 
 PLATEGA_API_URL = "https://app.platega.io"
 CRYPTOBOT_API_URL = "https://pay.crypt.bot/api"
+XROCKET_API_URL = "https://pay.xrocket.exchange"
 YOOMONEY_QUICKPAY_URL = "https://yoomoney.ru/quickpay/confirm.xml"
 YOOMONEY_API_URL = "https://yoomoney.ru/api"
+
+
+def payment_method_enabled(method):
+    """Admin-controlled gateway switch; disabled gateways cannot be used by API."""
+    default = 'false' if method.lower() == 'xrocket' else 'true'
+    value = AppSetting.get(f'PAYMENT_{method.upper()}_ENABLED', default)
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _xrocket_credentials():
+    token = AppSetting.get('XROCKET_API_TOKEN') or current_app.config.get('XROCKET_API_TOKEN')
+    currency = (AppSetting.get('XROCKET_CURRENCY') or current_app.config.get('XROCKET_CURRENCY') or 'USDT').upper()
+    try:
+        rate = float(AppSetting.get('XROCKET_RUB_RATE') or current_app.config.get('XROCKET_RUB_RATE') or 100)
+    except (TypeError, ValueError):
+        rate = 100.0
+    return token, currency, rate
 
 
 def _platega_credentials():
@@ -275,6 +293,41 @@ def create_cryptobot_payment(user, plan, subscription_id):
     return None, None
 
 
+def create_xrocket_payment(user, plan, subscription_id):
+    """Create a crypto invoice through xRocket Pay Legacy API."""
+    token, currency, rub_rate = _xrocket_credentials()
+    if not token or rub_rate <= 0:
+        print('[Payment] xRocket not configured (need token and RUB rate).')
+        return None, None
+
+    amount = round(float(plan['price']) / rub_rate, 2)
+    payload_ref = f'sub_{subscription_id}_{uuid.uuid4().hex[:8]}'
+    headers = {'Rocket-Pay-Key': token, 'Content-Type': 'application/json'}
+    body = {
+        'amount': amount,
+        'currency': currency,
+        'description': f'VOLTA VPN: {plan["name"]}',
+        'payload': payload_ref,
+        'callbackUrl': f'{current_app.config.get("WEBHOOK_URL", "").rstrip("/")}/payment/callback/xrocket',
+    }
+    try:
+        response = requests.post(f'{XROCKET_API_URL}/tg-invoices', json=body, headers=headers, timeout=15)
+        data = response.json()
+        result = data.get('data', data.get('result', data))
+        invoice_id = result.get('id') or result.get('invoiceId') or result.get('invoice_id')
+        pay_url = result.get('link') or result.get('payUrl') or result.get('pay_url') or result.get('url')
+        if response.ok and invoice_id and pay_url:
+            payment = Payment(user_id=user.id, amount=plan['price'], plan=plan['name'],
+                              payment_method='xrocket', external_id=str(invoice_id), status='pending')
+            db.session.add(payment)
+            db.session.commit()
+            return pay_url, str(invoice_id)
+        print(f'[Payment] xRocket create failed (HTTP {response.status_code}): {str(data)[:300]}')
+    except Exception as exc:
+        print(f'[Payment] xRocket API error: {exc}')
+    return None, None
+
+
 def check_payment_status(external_id, method):
     """
     Checks payment status and activates user subscription if paid.
@@ -303,6 +356,19 @@ def check_payment_status(external_id, method):
                     is_paid = True
             except Exception as e:
                 print(f"[Payment] Platega check notice: {e}")
+
+    elif method == 'xrocket':
+        token, _, _ = _xrocket_credentials()
+        if token:
+            try:
+                response = requests.get(f'{XROCKET_API_URL}/tg-invoices/{external_id}', headers={'Rocket-Pay-Key': token}, timeout=15)
+                data = response.json()
+                result = data.get('data', data.get('result', data))
+                status = str(result.get('status', '')).lower()
+                if status in {'paid', 'active_paid', 'completed'} or result.get('paid') is True:
+                    is_paid = True
+            except Exception as e:
+                print(f'[Payment] xRocket check notice: {e}')
 
     elif method == 'cryptobot':
         api_token = AppSetting.get('CRYPTOBOT_API_TOKEN') or current_app.config.get('CRYPTOBOT_API_TOKEN')

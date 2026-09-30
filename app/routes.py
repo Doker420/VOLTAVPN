@@ -5,7 +5,9 @@ from app.models import User, Subscription, Config, Payment, TrialClaim, SupportM
 from app.payment import (
     create_platega_payment,
     create_cryptobot_payment,
+    create_xrocket_payment,
     create_yoomoney_payment,
+    payment_method_enabled,
     check_payment_status,
     process_yoomoney_webhook,
     activate_paid_subscription,
@@ -749,13 +751,16 @@ def register_routes(flask_app):
 
         receiver, token, _ = _yoomoney_credentials()
         support_info = _support_contacts()
-        return render_template('subscribe.html', plan=plan, plan_id=plan_id, yoomoney_receiver=receiver, support_info=support_info)
+        payment_methods = {method: payment_method_enabled(method) for method in ('yoomoney', 'platega', 'cryptobot', 'xrocket')}
+        return render_template('subscribe.html', plan=plan, plan_id=plan_id, yoomoney_receiver=receiver, support_info=support_info, payment_methods=payment_methods)
 
     @flask_app.route('/payment/create', methods=['POST'])
     @login_required
     def create_payment():
         plan_id = request.form.get('plan_id')
-        method = request.form.get('method', 'yoomoney')
+        method = request.form.get('method', 'yoomoney').strip().lower()
+        if method not in {'yoomoney', 'platega', 'cryptobot', 'xrocket'} or not payment_method_enabled(method):
+            return jsonify({'error': 'Этот способ оплаты отключён администратором.'}), 400
         plan = PLANS.get(plan_id)
 
         if not plan or plan['price'] == 0:
@@ -773,6 +778,8 @@ def register_routes(flask_app):
             payment_url, external_id = create_platega_payment(current_user, plan, sub_id)
         elif method == 'cryptobot':
             payment_url, external_id = create_cryptobot_payment(current_user, plan, sub_id)
+        elif method == 'xrocket':
+            payment_url, external_id = create_xrocket_payment(current_user, plan, sub_id)
         else:
             return jsonify({'error': 'Invalid payment method'}), 400
 
@@ -1254,6 +1261,10 @@ def register_routes(flask_app):
         required_channel_url = AppSetting.get('REQUIRED_CHANNEL_URL') or current_app.config.get('REQUIRED_CHANNEL_URL', '')
         affiliate_commission_percent = AppSetting.get('AFFILIATE_COMMISSION_PERCENT') or current_app.config.get('AFFILIATE_COMMISSION_PERCENT', '75')
         min_withdrawal_amount = AppSetting.get('MIN_WITHDRAWAL_AMOUNT') or current_app.config.get('MIN_WITHDRAWAL_AMOUNT', '100')
+        payment_enabled = {m: payment_method_enabled(m) for m in ('yoomoney', 'platega', 'cryptobot', 'xrocket')}
+        xrocket_token = AppSetting.get('XROCKET_API_TOKEN') or ''
+        xrocket_currency = AppSetting.get('XROCKET_CURRENCY') or 'USDT'
+        xrocket_rub_rate = AppSetting.get('XROCKET_RUB_RATE') or '100'
         free_config_collection_enabled = (AppSetting.get('FREE_CONFIG_COLLECTION_ENABLED', 'true') or 'true').strip().lower() in {'1', 'true', 'yes', 'on'}
 
         stats = {
@@ -1283,6 +1294,10 @@ def register_routes(flask_app):
             affiliate_rewards=affiliate_rewards_list,
             affiliate_commission_percent=affiliate_commission_percent,
             min_withdrawal_amount=min_withdrawal_amount,
+            payment_enabled=payment_enabled,
+            xrocket_token=xrocket_token,
+            xrocket_currency=xrocket_currency,
+            xrocket_rub_rate=xrocket_rub_rate,
             yoomoney_receiver=yoomoney_receiver,
             yoomoney_token=yoomoney_token,
             yoomoney_secret=yoomoney_secret,
@@ -1566,6 +1581,12 @@ def register_routes(flask_app):
         affiliate_commission_percent = (request.form.get('affiliate_commission_percent') or '75').strip()
         min_withdrawal_amount = (request.form.get('min_withdrawal_amount') or '100').strip()
         free_config_collection_enabled = 'true' if request.form.get('free_config_collection_enabled') == 'on' else 'false'
+        payment_switches = {
+            'YOOMONEY': 'true' if request.form.get('payment_yoomoney_enabled') == 'on' else 'false',
+            'PLATEGA': 'true' if request.form.get('payment_platega_enabled') == 'on' else 'false',
+            'CRYPTOBOT': 'true' if request.form.get('payment_cryptobot_enabled') == 'on' else 'false',
+            'XROCKET': 'true' if request.form.get('payment_xrocket_enabled') == 'on' else 'false',
+        }
 
         if webhook_url:
             AppSetting.set('WEBHOOK_URL', webhook_url, 'Публичный домен сервиса (https://...)')
@@ -1579,6 +1600,11 @@ def register_routes(flask_app):
         AppSetting.set('AFFILIATE_COMMISSION_PERCENT', affiliate_commission_percent, 'Процент партнёрского вознаграждения (%)')
         AppSetting.set('MIN_WITHDRAWAL_AMOUNT', min_withdrawal_amount, 'Минимальная сумма для вывода (₽)')
         AppSetting.set('FREE_CONFIG_COLLECTION_ENABLED', free_config_collection_enabled, 'Сбор бесплатных конфигураций из открытых источников')
+        for gateway, enabled in payment_switches.items():
+            AppSetting.set(f'PAYMENT_{gateway}_ENABLED', enabled, f'Платёжная система {gateway}')
+        AppSetting.set('XROCKET_API_TOKEN', (request.form.get('xrocket_token') or '').strip(), 'xRocket API token')
+        AppSetting.set('XROCKET_CURRENCY', (request.form.get('xrocket_currency') or 'USDT').strip().upper(), 'Валюта xRocket')
+        AppSetting.set('XROCKET_RUB_RATE', (request.form.get('xrocket_rub_rate') or '100').strip(), 'Курс рублей за единицу xRocket валюты')
 
         flash('Настройки успешно сохранены!', 'success')
         return redirect(url_for('admin_dashboard') + '#settings')

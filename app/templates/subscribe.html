@@ -28,7 +28,7 @@
             <h5 class="fw-bold text-white mb-3">Выберите способ оплаты:</h5>
             <div class="d-flex flex-column gap-3 mb-4">
                 <!-- YooMoney P2P / Token Card -->
-                <div class="payment-option-card d-flex align-items-center justify-content-between active" id="optYooMoney" onclick="selectGateway('yoomoney')">
+                {% if payment_methods.yoomoney %}<div class="payment-option-card d-flex align-items-center justify-content-between active" id="optYooMoney" onclick="selectGateway('yoomoney')">
                     <div class="d-flex align-items-center gap-3">
                         <div class="fs-3 text-emerald"><i class="bi bi-credit-card-2-front-fill"></i></div>
                         <div>
@@ -37,10 +37,10 @@
                         </div>
                     </div>
                     <i class="bi bi-check-circle-fill text-emerald fs-4" id="iconYooMoney"></i>
-                </div>
+                </div>{% endif %}
 
                 <!-- Platega Gateway -->
-                <div class="payment-option-card d-flex align-items-center justify-content-between" id="optPlatega" onclick="selectGateway('platega')">
+                {% if payment_methods.platega %}<div class="payment-option-card d-flex align-items-center justify-content-between" id="optPlatega" onclick="selectGateway('platega')">
                     <div class="d-flex align-items-center gap-3">
                         <div class="fs-3 text-volt"><i class="bi bi-shield-check"></i></div>
                         <div>
@@ -49,10 +49,10 @@
                         </div>
                     </div>
                     <i class="bi bi-circle text-white-50 fs-4" id="iconPlatega"></i>
-                </div>
+                </div>{% endif %}
 
                 <!-- CryptoBot -->
-                <div class="payment-option-card d-flex align-items-center justify-content-between" id="optCrypto" onclick="selectGateway('cryptobot')">
+                {% if payment_methods.cryptobot %}<div class="payment-option-card d-flex align-items-center justify-content-between" id="optCrypto" onclick="selectGateway('cryptobot')">
                     <div class="d-flex align-items-center gap-3">
                         <div class="fs-3 text-indigo"><i class="bi bi-currency-bitcoin"></i></div>
                         <div>
@@ -61,7 +61,19 @@
                         </div>
                     </div>
                     <i class="bi bi-circle text-white-50 fs-4" id="iconCrypto"></i>
-                </div>
+                </div>{% endif %}
+
+                <!-- xRocket Pay -->
+                {% if payment_methods.xrocket %}<div class="payment-option-card d-flex align-items-center justify-content-between" id="optXRocket" onclick="selectGateway('xrocket')">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="fs-3 text-warning"><i class="bi bi-rocket-takeoff-fill"></i></div>
+                        <div>
+                            <h6 class="fw-bold text-white mb-0">xRocket Pay</h6>
+                            <small class="text-white-50">Оплата в USDT / TON / BTC через Telegram</small>
+                        </div>
+                    </div>
+                    <i class="bi bi-circle text-white-50 fs-4" id="iconXRocket"></i>
+                </div>{% endif %}
             </div>
 
             <button class="btn btn-glow-volt w-100 py-3 mb-3 fs-5" id="btnPay" onclick="submitPayment()">
@@ -91,14 +103,15 @@
 {% block scripts %}
 {% if plan.price > 0 %}
 <script>
-let selectedMethod = 'yoomoney';
+let selectedMethod = '{% if payment_methods.yoomoney %}yoomoney{% elif payment_methods.platega %}platega{% elif payment_methods.cryptobot %}cryptobot{% else %}xrocket{% endif %}';
 
 function selectGateway(method) {
     selectedMethod = method;
     const cards = {
         'yoomoney': { opt: document.getElementById('optYooMoney'), icon: document.getElementById('iconYooMoney') },
         'platega': { opt: document.getElementById('optPlatega'), icon: document.getElementById('iconPlatega') },
-        'cryptobot': { opt: document.getElementById('optCrypto'), icon: document.getElementById('iconCrypto') }
+        'cryptobot': { opt: document.getElementById('optCrypto'), icon: document.getElementById('iconCrypto') },
+        'xrocket': { opt: document.getElementById('optXRocket'), icon: document.getElementById('iconXRocket') }
     };
 
     for (let k in cards) {
