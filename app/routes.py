@@ -263,6 +263,18 @@ def admin_required(f):
 
 
 def register_routes(flask_app):
+    @flask_app.teardown_appcontext
+    def shutdown_session(exception=None):
+        db.session.remove()
+
+    @flask_app.errorhandler(500)
+    def internal_server_error(e):
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return render_template('base.html'), 500
+
     @flask_app.context_processor
     def inject_helpers():
         from urllib.parse import quote

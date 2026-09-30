@@ -2,6 +2,9 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from apscheduler.schedulers.background import BackgroundScheduler
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+import sqlite3
 import os
 import threading
 from dotenv import load_dotenv
@@ -11,6 +14,23 @@ load_dotenv()
 db = SQLAlchemy()
 login_manager = LoginManager()
 scheduler = BackgroundScheduler()
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    """
+    Enable SQLite WAL mode and busy timeout so concurrent reads/writes and background jobs
+    never lock the database or drop HTTP connections.
+    """
+    if isinstance(dbapi_connection, sqlite3.Connection):
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute("PRAGMA busy_timeout=15000;")
+            cursor.execute("PRAGMA synchronous=NORMAL;")
+        except Exception:
+            pass
+        finally:
+            cursor.close()
 
 def _run_lightweight_migrations():
     """
@@ -127,6 +147,10 @@ def create_app():
     flask_app.config['YOOMONEY_NOTIFICATION_SECRET'] = os.getenv('YOOMONEY_NOTIFICATION_SECRET', '')
     flask_app.config['SUPPORT_EMAIL'] = os.getenv('SUPPORT_EMAIL', 'support@vpn.stas-max.ru')
     flask_app.config['SUPPORT_TELEGRAM'] = os.getenv('SUPPORT_TELEGRAM', '@ILSupport')
+    flask_app.config['REQUIRED_CHANNEL'] = os.getenv('REQUIRED_CHANNEL', '')
+    flask_app.config['REQUIRED_CHANNEL_URL'] = os.getenv('REQUIRED_CHANNEL_URL', '')
+    flask_app.config['AFFILIATE_COMMISSION_PERCENT'] = os.getenv('AFFILIATE_COMMISSION_PERCENT', '75')
+    flask_app.config['MIN_WITHDRAWAL_AMOUNT'] = os.getenv('MIN_WITHDRAWAL_AMOUNT', '100')
     flask_app.config['WEBHOOK_URL'] = os.getenv('WEBHOOK_URL', 'http://localhost:5001')
     flask_app.config['BOT_USERNAME'] = os.getenv('BOT_USERNAME', '')
 

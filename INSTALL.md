@@ -79,12 +79,32 @@ sudo -u volta nano .env
 ```env
 FLASK_SECRET_KEY=<сгенерируйте: python3 -c "import secrets; print(secrets.token_hex(32))">
 TELEGRAM_BOT_TOKEN=<токен от BotFather>
+BOT_USERNAME=<юзернейм бота без @>
 ADMIN_TELEGRAM_IDS=<ваш_telegram_id>          # можно несколько через запятую
-PLATEGA_API_KEY=<ключ или пусто>
-PLATEGA_SHOP_ID=<shop id или пусто>
-CRYPTOBOT_API_TOKEN=<токен или пусто>
+
+# Служба поддержки
+SUPPORT_EMAIL=support@vpn.stas-max.ru
+SUPPORT_TELEGRAM=@ILSupport
+
+# Обязательная подписка на канал (ОП)
+REQUIRED_CHANNEL=@my_channel
+REQUIRED_CHANNEL_URL=https://t.me/my_channel
+
+# Партнёрская программа (Реферальные отчисления 75%)
+AFFILIATE_COMMISSION_PERCENT=75
+MIN_WITHDRAWAL_AMOUNT=100
+
+# Платёжные шлюзы
+YOOMONEY_RECEIVER=4100118544926615
+YOOMONEY_TOKEN=
+YOOMONEY_NOTIFICATION_SECRET=
+PLATEGA_MERCHANT_ID=
+PLATEGA_SECRET=
+CRYPTOBOT_API_TOKEN=
+
+# Домен и БД
 WEBHOOK_URL=https://volta.example.com          # ваш реальный домен со https
-DATABASE_URL=sqlite:////opt/volta/app/instance/volta.db
+DATABASE_URL=sqlite:////opt/volta/app/instance/vpnhub.db
 ```
 
 > `WEBHOOK_URL` используется для генерации ссылок подписки и deep-links мгновенного подключения — обязательно укажите реальный публичный `https`-домен, иначе клиенты получат `localhost`.
@@ -182,11 +202,17 @@ server {
 
     location / {
         proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 120s;
         proxy_read_timeout 120s;
+        client_max_body_size 20M;
     }
 }
 ```

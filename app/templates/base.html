@@ -292,7 +292,7 @@
             </div>
 
             <!-- Pre-chat Contact Info Form (if not logged in / not filled yet) -->
-            <div id="supportPreChat" class="p-4" style="display:none;">
+            <div id="supportPreChat" class="p-3 p-md-4" style="display:none; overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1 1 auto;">
                 <div class="text-center mb-3">
                     <div class="p-2 rounded-circle bg-dark d-inline-block border border-glass mb-2">
                         <i class="bi bi-person-lines-fill text-volt fs-3"></i>
@@ -316,7 +316,7 @@
             </div>
 
             <!-- Active Chat Area -->
-            <div id="supportActiveChat" style="display:flex; flex-direction:column; flex:1; min-height:0;">
+            <div id="supportActiveChat" style="display:flex; flex-direction:column; flex:1 1 0%; min-height:0; overflow:hidden;">
                 <!-- Messages Area -->
                 <div id="supportMessages" class="support-messages-body p-3">
                     <div class="support-msg support-msg-system text-center small text-white-50 my-2">
@@ -325,11 +325,11 @@
                 </div>
 
                 <!-- Input Box -->
-                <div class="support-input-area p-2 border-top border-glass">
-                    <form id="supportForm" onsubmit="sendSupportMessage(event)" class="d-flex gap-2">
-                        <input type="text" id="supportInputText" class="form-control auth-input text-white" placeholder="Напишите сообщение..." required autocomplete="off" style="padding: 8px 12px !important; font-size: 0.9rem !important;">
-                        <button type="submit" class="btn btn-sm btn-glow-volt px-3" id="supportSendBtn">
-                            <i class="bi bi-send-fill"></i>
+                <div class="support-input-area p-2 px-3 border-top border-glass">
+                    <form id="supportForm" onsubmit="sendSupportMessage(event)" class="d-flex align-items-center gap-2 m-0">
+                        <input type="text" id="supportInputText" class="form-control auth-input text-white flex-grow-1" placeholder="Напишите сообщение..." required autocomplete="off" style="padding: 10px 14px !important; font-size: 0.92rem !important; border-radius: 12px !important;">
+                        <button type="submit" class="btn btn-glow-volt px-3 py-2 flex-shrink-0" id="supportSendBtn" style="border-radius: 12px !important; min-width: 44px; height: 42px; display: flex; align-items: center; justify-content: center;">
+                            <i class="bi bi-send-fill fs-6"></i>
                         </button>
                     </form>
                 </div>
