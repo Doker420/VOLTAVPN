@@ -21,8 +21,8 @@ def payment_method_enabled(method):
 
 
 def _xrocket_credentials():
-    token = AppSetting.get('XROCKET_API_TOKEN') or current_app.config.get('XROCKET_API_TOKEN')
-    currency = (AppSetting.get('XROCKET_CURRENCY') or current_app.config.get('XROCKET_CURRENCY') or 'USDT').upper()
+    token = (AppSetting.get('XROCKET_API_TOKEN') or current_app.config.get('XROCKET_API_TOKEN') or '').strip()
+    currency = (AppSetting.get('XROCKET_CURRENCY') or current_app.config.get('XROCKET_CURRENCY') or 'USDT').strip().upper()
     try:
         rate = float(AppSetting.get('XROCKET_RUB_RATE') or current_app.config.get('XROCKET_RUB_RATE') or 100)
     except (TypeError, ValueError):
