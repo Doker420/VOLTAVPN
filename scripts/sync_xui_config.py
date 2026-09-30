@@ -163,15 +163,33 @@ def main():
     args = parser.parse_args()
 
     xui_url = required("XUI_URL")
-    xui_user = required("XUI_USER")
-    xui_password = required("XUI_PASSWORD")
+    api_token = os.getenv("XUI_API_TOKEN", "").strip()
+    xui_user = os.getenv("XUI_USER", "").strip()
+    xui_password = os.getenv("XUI_PASSWORD", "").strip()
+    if not api_token and (not xui_user or not xui_password):
+        raise SystemExit("Задайте XUI_API_TOKEN или обе переменные XUI_USER и XUI_PASSWORD")
     verify = os.getenv("XUI_VERIFY_TLS", "0").lower() in {"1", "true", "yes"}
 
     session = requests.Session()
     session.verify = verify
-    xui_url = login_xui(session, xui_url, xui_user, xui_password)
+    # Newer 3X-UI releases may disable the legacy cookie login and return
+    # 403. The API token is the preferred authentication method there.
+    if api_token:
+        session.headers.update({
+            "Authorization": f"Bearer {api_token}",
+            "Accept": "application/json",
+        })
+        try:
+            inbounds = get_inbounds(session, xui_url)
+        except requests.HTTPError as exc:
+            raise RuntimeError(
+                f"3X-UI отклонила API-токен ({exc}). Проверьте токен и URL панели."
+            ) from exc
+    else:
+        xui_url = login_xui(session, xui_url, xui_user, xui_password)
+        inbounds = get_inbounds(session, xui_url)
 
-    inbound = choose_inbound(get_inbounds(session, xui_url), os.getenv("XUI_INBOUND_ID"))
+    inbound = choose_inbound(inbounds, os.getenv("XUI_INBOUND_ID"))
     panel_host = urlparse(xui_url).hostname
     uri = make_vless_uri(inbound, panel_host)
     print("Готовый VLESS URI:")
