@@ -21,6 +21,10 @@ GITHUB_SOURCES = [
     "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_VLESS_RUS_mobile.txt",
     "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_VLESS_RUS.txt",
     "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_SS+All_RUS.txt",
+    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_SS_WEAK_DPI_RUS.txt",
+    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/Export/Base64/PROXIES_ONLY/Vless-Reality-White-Lists-Rus-Mobile-base64.txt",
+    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/Export/Base64/PROXIES_ONLY/WHITE-CIDR-RU-checked-base64.txt",
+    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/Export/Base64/PROXIES_ONLY/WHITE-SNI-RU-all-base64.txt",
 ]
 RUSSIA_VERIFIED_SOURCE = 'igareck/vpn-configs-for-russia'
 
@@ -742,7 +746,7 @@ def probe_all_configs(delete_dead=True, check_russia_verified=False):
                 c.latency_ms = lat
                 c.is_working = True
                 working_count += 1
-            elif is_curated:
+            elif is_curated and not check_russia_verified:
                 # The local server's latency is informational only for rows
                 # already verified in Russia. Never remove such a row because
                 # this VPS cannot reach it or has a slow route to it.
@@ -765,7 +769,7 @@ def probe_all_configs(delete_dead=True, check_russia_verified=False):
 
 def test_all_configs():
     """Admin-only refresh: measure local ping for every row, including curated rows."""
-    return probe_all_configs(delete_dead=False, check_russia_verified=True)
+    return probe_all_configs(delete_dead=True, check_russia_verified=True)
 
 
 def delete_dead_configs():
