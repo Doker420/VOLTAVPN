@@ -14,15 +14,15 @@ scheduler = BackgroundScheduler()
 
 def _run_lightweight_migrations():
     """
-    Adds columns introduced after the DB was first created, without requiring
-    Alembic. Safe and idempotent for SQLite.
+    Adds tables/columns introduced after the DB was first created. Safe and idempotent.
     """
     from sqlalchemy import text, inspect
-    inspector = inspect(db.engine)
     try:
+        inspector = inspect(db.engine)
         user_cols = [c['name'] for c in inspector.get_columns('user')]
     except Exception:
         return
+
     if 'login_token' not in user_cols:
         try:
             db.session.execute(text('ALTER TABLE user ADD COLUMN login_token VARCHAR(64)'))
@@ -73,51 +73,59 @@ def _run_lightweight_migrations():
                 print(f"[Migrate] country_code add skipped: {e}")
 
 def create_app():
-    app = Flask(__name__)
-    app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'vpnhub-secret-key-2026')
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///vpnhub.db')
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    flask_app = Flask(__name__)
+    flask_app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'volta-secret-key-2026')
+    
+    # Ensure instance directory exists
+    os.makedirs(flask_app.instance_path, exist_ok=True)
+    db_path = os.path.join(flask_app.instance_path, 'vpnhub.db')
+    flask_app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f'sqlite:///{db_path}')
+    flask_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     # Config options for payment gateways
-    # Platega: X-MerchantId + X-Secret (see https://docs.platega.io/)
-    app.config['PLATEGA_MERCHANT_ID'] = os.getenv('PLATEGA_MERCHANT_ID')
-    app.config['PLATEGA_SECRET'] = os.getenv('PLATEGA_SECRET')
-    # Legacy fallbacks (deprecated)
-    app.config['PLATEGA_API_KEY'] = os.getenv('PLATEGA_API_KEY')
-    app.config['PLATEGA_SHOP_ID'] = os.getenv('PLATEGA_SHOP_ID')
-    app.config['CRYPTOBOT_API_TOKEN'] = os.getenv('CRYPTOBOT_API_TOKEN')
-    app.config['WEBHOOK_URL'] = os.getenv('WEBHOOK_URL', 'http://localhost:5000')
-    # Bot username (without @) for building t.me deep links on the site
-    app.config['BOT_USERNAME'] = os.getenv('BOT_USERNAME')
+    flask_app.config['PLATEGA_MERCHANT_ID'] = os.getenv('PLATEGA_MERCHANT_ID')
+    flask_app.config['PLATEGA_SECRET'] = os.getenv('PLATEGA_SECRET')
+    flask_app.config['PLATEGA_API_KEY'] = os.getenv('PLATEGA_API_KEY')
+    flask_app.config['PLATEGA_SHOP_ID'] = os.getenv('PLATEGA_SHOP_ID')
+    flask_app.config['CRYPTOBOT_API_TOKEN'] = os.getenv('CRYPTOBOT_API_TOKEN')
+    flask_app.config['YOOMONEY_RECEIVER'] = os.getenv('YOOMONEY_RECEIVER', '')
+    flask_app.config['YOOMONEY_TOKEN'] = os.getenv('YOOMONEY_TOKEN', '')
+    flask_app.config['YOOMONEY_NOTIFICATION_SECRET'] = os.getenv('YOOMONEY_NOTIFICATION_SECRET', '')
+    flask_app.config['SUPPORT_EMAIL'] = os.getenv('SUPPORT_EMAIL', 'support@voltavpn.net')
+    flask_app.config['SUPPORT_TELEGRAM'] = os.getenv('SUPPORT_TELEGRAM', '@voltavpn_support')
+    flask_app.config['WEBHOOK_URL'] = os.getenv('WEBHOOK_URL', 'http://localhost:5000')
+    flask_app.config['BOT_USERNAME'] = os.getenv('BOT_USERNAME', '')
 
-    db.init_app(app)
-    login_manager.init_app(app)
+    db.init_app(flask_app)
+    login_manager.init_app(flask_app)
     login_manager.login_view = 'index'
 
-    with app.app_context():
-        from app import routes, models
+    with flask_app.app_context():
         from app.routes import register_routes
+        import app.models
         db.create_all()
         _run_lightweight_migrations()
-        register_routes(app)
+        register_routes(flask_app)
+
+        # Seed configs immediately if none exist
+        from app.collector import seed_default_configs, collect_configs
+        from app.models import Config
+        try:
+            if Config.query.count() == 0:
+                seed_default_configs()
+        except Exception as e:
+            print(f"[Init] Seed notice: {e}")
 
         if not scheduler.running:
-            from app.collector import collect_configs
-            scheduler.add_job(func=collect_configs, trigger='interval', hours=1, id='config_collector')
-            scheduler.start()
-
-            # Trigger initial config fetch in background if empty
-            def initial_collect():
-                with app.app_context():
-                    from app.models import Config
-                    if Config.query.count() == 0:
-                        collect_configs()
-
-            threading.Thread(target=initial_collect, daemon=True).start()
+            try:
+                scheduler.add_job(func=collect_configs, trigger='interval', hours=1, id='config_collector')
+                scheduler.start()
+            except Exception as e:
+                print(f"[Scheduler] Start notice: {e}")
 
     from app.bot import init_bot
-    init_bot(app)
+    init_bot(flask_app)
 
-    return app
+    return flask_app
 
 app = create_app()

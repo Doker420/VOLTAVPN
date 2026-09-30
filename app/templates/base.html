@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>VOLTA — Молниеносный VPN с автоподпиской для России</title>
-    <meta name="description" content="VOLTA — автоматические проверенные VPN-конфигурации VLESS, Trojan, Shadowsocks, Hysteria2, VMess для стабильной работы в РФ. Мгновенное подключение в один тап.">
+    <title>VOLTA — Молниеносный VPN для России (3 дня бесплатно)</title>
+    <meta name="description" content="VOLTA — автоматические проверенные VPN-конфигурации VLESS Reality, Trojan, Shadowsocks, Hysteria2. Автообновление каждый час. 3 дня бесплатно.">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
@@ -32,30 +32,30 @@
                     </li>
                     {% if current_user.is_authenticated %}
                     <li class="nav-item">
-                        <a class="nav-link nav-link-anim" href="/dashboard">Подключение</a>
+                        <a class="nav-link nav-link-anim" href="/dashboard">Мой VPN</a>
                     </li>
                     {% endif %}
                     {% if current_user.is_authenticated and current_user.is_admin %}
                     <li class="nav-item">
-                        <a class="nav-link nav-link-anim text-volt" href="/admin"><i class="bi bi-shield-lock me-1"></i>Админ</a>
+                        <a class="nav-link nav-link-anim text-volt" href="/admin"><i class="bi bi-shield-lock me-1"></i>Админ-панель</a>
                     </li>
                     {% endif %}
                 </ul>
                 <div class="d-flex align-items-center gap-3 mt-3 mt-lg-0">
                     {% if current_user.is_authenticated %}
                     <a href="/dashboard" class="btn btn-glow-volt btn-sm px-4">
-                        <i class="bi bi-lightning-charge-fill me-1"></i> Мой кабинет
+                        <i class="bi bi-lightning-charge-fill me-1"></i> Личный кабинет
                     </a>
-                    <a href="/logout" class="btn btn-glass-secondary btn-sm px-3">
+                    <a href="/logout" class="btn btn-glass-secondary btn-sm px-3" title="Выйти">
                         <i class="bi bi-box-arrow-right"></i>
                     </a>
                     {% else %}
-                    <button class="btn btn-glass-secondary btn-sm px-4" data-bs-toggle="modal" data-bs-target="#loginModal">
+                    <button class="btn btn-glass-secondary btn-sm px-4" onclick="openAuthModal('login')">
                         <i class="bi bi-person-fill me-1"></i> Вход
                     </button>
-                    <a href="/#pricing" class="btn btn-glow-volt btn-sm px-4">
-                        Подключить бесплатно
-                    </a>
+                    <button class="btn btn-glow-volt btn-sm px-4" onclick="openAuthModal('register')">
+                        <i class="bi bi-gift-fill me-1"></i> 3 дня бесплатно
+                    </button>
                     {% endif %}
                 </div>
             </div>
@@ -82,13 +82,16 @@
     </main>
 
     <!-- Footer -->
-    <footer class="py-4">
+    <footer class="py-4 mt-5 border-top border-glass">
         <div class="container text-center text-white-50">
             <div class="d-flex justify-content-center align-items-center gap-2 mb-2">
                 <span class="brand-gradient fs-5 fw-bold">VOLTA</span>
-                <span>— молниеносный VPN с автоподпиской</span>
+                <span>— молниеносный VPN с автообновлением серверов</span>
             </div>
-            <p class="small mb-0 opacity-75">Протестировано для работы в РФ · VLESS · Trojan · Shadowsocks · Hysteria2 · VMess · Tuic</p>
+            <p class="small mb-2 opacity-75">VLESS Reality · Trojan · Shadowsocks · Hysteria2 · Автопроверка пинга каждый час</p>
+            <div class="small text-white-50">
+                Email поддержки: <a href="mailto:{{ support_info.email if support_info else 'support@voltavpn.net' }}" class="text-volt text-decoration-none">{{ support_info.email if support_info else 'support@voltavpn.net' }}</a>
+            </div>
         </div>
     </footer>
 
@@ -102,11 +105,11 @@
         </a>
         {% if current_user.is_authenticated %}
         <a href="/dashboard" class="bn-item {% if request.path == '/dashboard' %}active{% endif %}">
-            <i class="bi bi-lightning-charge-fill"></i> Подключить
+            <i class="bi bi-lightning-charge-fill"></i> Мой VPN
         </a>
         {% else %}
-        <a href="#" class="bn-item" data-bs-toggle="modal" data-bs-target="#loginModal">
-            <i class="bi bi-lightning-charge-fill"></i> Подключить
+        <a href="javascript:void(0)" class="bn-item" onclick="openAuthModal('register')">
+            <i class="bi bi-lightning-charge-fill"></i> 3 дня Free
         </a>
         {% endif %}
         <a href="/#guides" class="bn-item">
@@ -123,13 +126,279 @@
             </a>
             {% endif %}
         {% else %}
-        <a href="#" class="bn-item" data-bs-toggle="modal" data-bs-target="#loginModal">
+        <a href="javascript:void(0)" class="bn-item" onclick="openAuthModal('login')">
             <i class="bi bi-person-fill"></i> Вход
         </a>
         {% endif %}
     </nav>
 
+    <!-- Unified Login & Registration Modal -->
+    <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content card-glass border-0 text-white p-3 p-md-4">
+                <div class="modal-header border-0 pb-2">
+                    <ul class="nav nav-pills w-100 gap-2 p-1 bg-dark rounded-4 border border-glass" id="authTabs" role="tablist">
+                        <li class="nav-item flex-fill" role="presentation">
+                            <button class="nav-link w-100 py-2 active btn-glass-tab" id="login-tab-btn" data-bs-toggle="pill" data-bs-target="#loginTab" type="button" role="tab">
+                                <i class="bi bi-box-arrow-in-right me-1"></i> Вход
+                            </button>
+                        </li>
+                        <li class="nav-item flex-fill" role="presentation">
+                            <button class="nav-link w-100 py-2 btn-glass-tab" id="register-tab-btn" data-bs-toggle="pill" data-bs-target="#registerTab" type="button" role="tab">
+                                <i class="bi bi-gift-fill me-1 text-volt"></i> Регистрация (3 дня Free)
+                            </button>
+                        </li>
+                    </ul>
+                    <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <div class="tab-content" id="authTabsContent">
+                        <!-- Login Tab -->
+                        <div class="tab-pane fade show active" id="loginTab" role="tabpanel">
+                            <form method="POST" action="/login">
+                                <div class="mb-3">
+                                    <label class="form-label text-white-50 small">Логин или Email</label>
+                                    <input type="text" name="username" class="form-control copy-field text-white px-3 py-2" required placeholder="Введите логин или почту">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label text-white-50 small">Пароль</label>
+                                    <input type="password" name="password" class="form-control copy-field text-white px-3 py-2" required placeholder="••••••••">
+                                </div>
+                                <button type="submit" class="btn btn-glow-volt w-100 py-3">Войти в аккаунт</button>
+                            </form>
+                        </div>
+
+                        <!-- Register Tab -->
+                        <div class="tab-pane fade" id="registerTab" role="tabpanel">
+                            <form method="POST" action="/register">
+                                <div class="alert card-glass border-0 text-white small mb-3 py-2" style="background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3) !important;">
+                                    <i class="bi bi-gift-fill text-emerald me-1"></i> При регистрации вы сразу получаете <strong>бесплатный период 3 дня</strong> без ограничений!
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label text-white-50 small">Имя пользователя (Логин) <span class="text-danger">*</span></label>
+                                    <input type="text" name="username" class="form-control copy-field text-white px-3 py-2" required minlength="3" placeholder="Придумайте логин">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label text-white-50 small">Email (для восстановления, необязательно)</label>
+                                    <input type="email" name="email" class="form-control copy-field text-white px-3 py-2" placeholder="name@example.com">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label text-white-50 small">Пароль <span class="text-danger">*</span></label>
+                                    <input type="password" name="password" class="form-control copy-field text-white px-3 py-2" required minlength="4" placeholder="••••••••">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label text-white-50 small">Повторите пароль</label>
+                                    <input type="password" name="confirm_password" class="form-control copy-field text-white px-3 py-2" placeholder="••••••••">
+                                </div>
+                                <button type="submit" class="btn btn-glow-emerald w-100 py-3">
+                                    <i class="bi bi-lightning-charge-fill me-1"></i> Зарегистрироваться (3 дня бесплатно)
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Support Chat Widget -->
+    <div id="supportWidget">
+        <!-- Floating Chat Button -->
+        <button id="supportBtn" class="support-fab" onclick="toggleSupportChat()" title="Чат поддержки">
+            <span class="support-badge" id="supportUnreadBadge" style="display:none;">1</span>
+            <i class="bi bi-chat-dots-fill fs-4" id="supportBtnIcon"></i>
+        </button>
+
+        <!-- Chat Container Box -->
+        <div id="supportBox" class="support-box card-glass" style="display:none;">
+            <!-- Header -->
+            <div class="support-box-header d-flex align-items-center justify-content-between p-3 border-bottom border-glass">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="support-avatar">
+                        <i class="bi bi-headset text-volt"></i>
+                        <span class="online-indicator"></span>
+                    </div>
+                    <div>
+                        <div class="fw-bold text-white small mb-0">Поддержка VOLTA</div>
+                        <div class="small text-emerald" style="font-size: 0.75rem;"><i class="bi bi-circle-fill" style="font-size:0.5rem;"></i> Онлайн · ответ 2-5 мин</div>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-glass-secondary p-1 px-2" onclick="toggleSupportChat()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+
+            <!-- Contacts Info Banner -->
+            <div class="support-contact-info p-2 px-3 small border-bottom border-glass">
+                <div class="d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-envelope-fill text-volt me-1"></i> <a href="mailto:{{ support_info.email if support_info else 'support@voltavpn.net' }}" class="text-white text-decoration-none">{{ support_info.email if support_info else 'support@voltavpn.net' }}</a></span>
+                    {% if support_info and support_info.telegram %}
+                    <span><i class="bi bi-telegram text-indigo me-1"></i> <a href="https://t.me/{{ support_info.telegram.replace('@', '') }}" target="_blank" class="text-volt text-decoration-none">{{ support_info.telegram }}</a></span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Messages Area -->
+            <div id="supportMessages" class="support-messages-body p-3">
+                <div class="support-msg support-msg-system text-center small text-white-50 my-2">
+                    Здравствуйте! Чем мы можем вам помочь? Напишите вопрос здесь или на email.
+                </div>
+            </div>
+
+            <!-- Input Box -->
+            <div class="support-input-area p-2 border-top border-glass">
+                <form id="supportForm" onsubmit="sendSupportMessage(event)" class="d-flex gap-2">
+                    <input type="text" id="supportInputText" class="form-control form-control-sm copy-field text-white" placeholder="Напишите сообщение..." required autocomplete="off">
+                    <button type="submit" class="btn btn-sm btn-glow-volt px-3" id="supportSendBtn">
+                        <i class="bi bi-send-fill"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    function openAuthModal(mode) {
+        const modalEl = document.getElementById('authModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        if (mode === 'register') {
+            const regTabBtn = document.getElementById('register-tab-btn');
+            const tab = bootstrap.Tab.getOrCreateInstance(regTabBtn);
+            tab.show();
+        } else {
+            const loginTabBtn = document.getElementById('login-tab-btn');
+            const tab = bootstrap.Tab.getOrCreateInstance(loginTabBtn);
+            tab.show();
+        }
+        modal.show();
+    }
+
+    // Auto open modal if URL contains ?auth=register or ?register=1
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('auth') === 'register' || urlParams.get('register') === '1') {
+            openAuthModal('register');
+        } else if (urlParams.get('auth') === 'login' || urlParams.get('login') === '1') {
+            openAuthModal('login');
+        }
+    });
+
+    // ----------------- Support Chat Client Logic -----------------
+    let supportChatOpen = false;
+    let supportPollTimer = null;
+    let supportSessionId = localStorage.getItem('volta_support_session') || '';
+    {% if current_user.is_authenticated %}
+    supportSessionId = 'user_{{ current_user.id }}';
+    localStorage.setItem('volta_support_session', supportSessionId);
+    {% endif %}
+
+    function toggleSupportChat() {
+        supportChatOpen = !supportChatOpen;
+        const box = document.getElementById('supportBox');
+        const icon = document.getElementById('supportBtnIcon');
+        if (supportChatOpen) {
+            box.style.display = 'flex';
+            icon.className = 'bi bi-x-lg fs-4';
+            document.getElementById('supportUnreadBadge').style.display = 'none';
+            fetchSupportMessages();
+            startSupportPolling();
+            setTimeout(() => {
+                const inp = document.getElementById('supportInputText');
+                if (inp) inp.focus();
+            }, 100);
+        } else {
+            box.style.display = 'none';
+            icon.className = 'bi bi-chat-dots-fill fs-4';
+            stopSupportPolling();
+        }
+    }
+
+    function fetchSupportMessages() {
+        const url = '/api/support/messages' + (supportSessionId ? '?session_id=' + encodeURIComponent(supportSessionId) : '');
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                if (data.session_id && !supportSessionId) {
+                    supportSessionId = data.session_id;
+                    localStorage.setItem('volta_support_session', supportSessionId);
+                }
+                renderSupportMessages(data.messages || []);
+            })
+            .catch(e => console.log('Support fetch notice:', e));
+    }
+
+    function renderSupportMessages(messages) {
+        const container = document.getElementById('supportMessages');
+        if (!container) return;
+
+        let html = '<div class="support-msg support-msg-system text-center small text-white-50 my-2">Служба поддержки VOLTA · Задайте вопрос в реальном времени</div>';
+        messages.forEach(m => {
+            const isAdmin = m.sender_type === 'admin';
+            const bubbleClass = isAdmin ? 'msg-admin' : 'msg-user';
+            const senderLabel = isAdmin ? '🛡️ Поддержка' : 'Вы';
+            html += `
+                <div class="chat-bubble-wrap ${bubbleClass}">
+                    <div class="chat-bubble">
+                        <div class="bubble-header small">${senderLabel} <span class="bubble-time">${m.time_short || ''}</span></div>
+                        <div class="bubble-text">${escapeHtml(m.text)}</div>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function sendSupportMessage(e) {
+        e.preventDefault();
+        const input = document.getElementById('supportInputText');
+        const text = input.value.trim();
+        if (!text) return;
+
+        const sendBtn = document.getElementById('supportSendBtn');
+        sendBtn.disabled = true;
+
+        fetch('/api/support/send', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                session_id: supportSessionId,
+                text: text
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            sendBtn.disabled = false;
+            input.value = '';
+            if (data.session_id) {
+                supportSessionId = data.session_id;
+                localStorage.setItem('volta_support_session', supportSessionId);
+            }
+            fetchSupportMessages();
+        })
+        .catch(err => {
+            sendBtn.disabled = false;
+            console.log('Error sending support msg:', err);
+        });
+    }
+
+    function startSupportPolling() {
+        stopSupportPolling();
+        supportPollTimer = setInterval(fetchSupportMessages, 2500);
+    }
+
+    function stopSupportPolling() {
+        if (supportPollTimer) clearInterval(supportPollTimer);
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.innerText = text;
+        return div.innerHTML;
+    }
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

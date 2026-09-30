@@ -1,120 +1,402 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="py-5">
-    <div class="container py-3">
-        <!-- Header -->
+<section class="py-4">
+    <div class="container-fluid px-lg-5 py-2">
+        <!-- Top Header -->
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
             <div>
-                <h2 class="hero-title fs-2 text-white mb-1"><i class="bi bi-shield-lock-fill text-volt me-2"></i>Админ-панель VOLTA</h2>
-                <p class="text-white-50 mb-0">Статистика сервиса, пользователи и управление конфигами</p>
+                <h2 class="hero-title fs-2 text-white mb-1">
+                    <i class="bi bi-shield-lock-fill text-volt me-2"></i>Панель управления VOLTA
+                </h2>
+                <p class="text-white-50 mb-0">Управление пользователями, подписками, серверами и онлайн-поддержкой</p>
             </div>
-            <form method="POST" action="/admin/collect">
-                <button type="submit" class="btn btn-glow-volt btn-sm px-4 py-2">
-                    <i class="bi bi-arrow-repeat me-1"></i> Запустить сбор конфигов
+            <div class="d-flex flex-wrap gap-2">
+                <form method="POST" action="/admin/collect" class="m-0">
+                    <button type="submit" class="btn btn-glass-secondary btn-sm px-3 py-2">
+                        <i class="bi bi-arrow-repeat me-1 text-volt"></i> Сборщик конфигов
+                    </button>
+                </form>
+                <form method="POST" action="/admin/configs/test-all" class="m-0">
+                    <button type="submit" class="btn btn-glass-secondary btn-sm px-3 py-2">
+                        <i class="bi bi-speedometer2 me-1 text-emerald"></i> Проверить пинг
+                    </button>
+                </form>
+                <button class="btn btn-glow-volt btn-sm px-3 py-2" data-bs-toggle="modal" data-bs-target="#addConfigModal">
+                    <i class="bi bi-plus-lg me-1"></i> Добавить сервер
                 </button>
-            </form>
-        </div>
-
-        <!-- KPI Cards -->
-        <div class="row g-3 mb-4">
-            <div class="col-6 col-lg-3">
-                <div class="admin-stat">
-                    <div class="stat-icon" style="background: rgba(34,211,238,0.15); color:#22d3ee;"><i class="bi bi-people-fill"></i></div>
-                    <div class="stat-value text-white">{{ stats.total_users }}</div>
-                    <div class="text-white-50 small">Пользователей</div>
-                </div>
-            </div>
-            <div class="col-6 col-lg-3">
-                <div class="admin-stat">
-                    <div class="stat-icon" style="background: rgba(16,185,129,0.15); color:#10b981;"><i class="bi bi-lightning-charge-fill"></i></div>
-                    <div class="stat-value text-white">{{ stats.active_subs }}</div>
-                    <div class="text-white-50 small">Активных подписок</div>
-                </div>
-            </div>
-            <div class="col-6 col-lg-3">
-                <div class="admin-stat">
-                    <div class="stat-icon" style="background: rgba(245,158,11,0.15); color:#f59e0b;"><i class="bi bi-cash-coin"></i></div>
-                    <div class="stat-value text-white">{{ stats.revenue_total }} ₽</div>
-                    <div class="text-white-50 small">Доход всего · {{ stats.revenue_month }} ₽ за 30 дн.</div>
-                </div>
-            </div>
-            <div class="col-6 col-lg-3">
-                <div class="admin-stat">
-                    <div class="stat-icon" style="background: rgba(139,92,246,0.15); color:#8b5cf6;"><i class="bi bi-hdd-network-fill"></i></div>
-                    <div class="stat-value text-white">{{ stats.working_configs }}</div>
-                    <div class="text-white-50 small">Рабочих из {{ stats.total_configs }} конфигов</div>
-                </div>
             </div>
         </div>
 
-        <div class="row g-4 mb-4">
-            <!-- Signup Trend -->
-            <div class="col-lg-7">
-                <div class="card-glass p-4 h-100">
-                    <h5 class="fw-bold text-white mb-1">Регистрации за 7 дней</h5>
-                    <p class="text-white-50 small mb-4">Новые пользователи по дням</p>
-                    {% set max_count = (stats.signup_trend | map(attribute='count') | max) or 1 %}
-                    <div class="mini-bar mb-2">
-                        {% for d in stats.signup_trend %}
-                        <div class="bar" style="height: {{ (d.count / max_count * 100) if max_count > 0 else 4 }}%;" title="{{ d.date }}: {{ d.count }}"></div>
-                        {% endfor %}
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        {% for d in stats.signup_trend %}
-                        <small class="text-white-50" style="flex:1; text-align:center;">{{ d.date }}</small>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
+        <!-- Admin Navigation Tabs -->
+        <ul class="nav nav-pills gap-2 mb-4 p-1 bg-dark rounded-4 border border-glass" id="adminMainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active btn-glass-tab px-4 py-2" id="tab-overview-btn" data-bs-toggle="pill" data-bs-target="#tab-overview" type="button" role="tab">
+                    <i class="bi bi-graph-up me-1 text-volt"></i> Обзор и Аналитика
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link btn-glass-tab px-4 py-2" id="tab-users-btn" data-bs-toggle="pill" data-bs-target="#tab-users" type="button" role="tab">
+                    <i class="bi bi-people-fill me-1 text-emerald"></i> Пользователи ({{ stats.total_users }})
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link btn-glass-tab px-4 py-2" id="tab-payments-btn" data-bs-toggle="pill" data-bs-target="#tab-payments" type="button" role="tab">
+                    <i class="bi bi-cash-coin me-1 text-warning"></i> Платежи ({{ payments | length }})
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link btn-glass-tab px-4 py-2" id="tab-configs-btn" data-bs-toggle="pill" data-bs-target="#tab-configs" type="button" role="tab">
+                    <i class="bi bi-hdd-network-fill me-1 text-purple"></i> Серверы ({{ stats.working_configs }}/{{ stats.total_configs }})
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link btn-glass-tab px-4 py-2" id="tab-support-btn" data-bs-toggle="pill" data-bs-target="#tab-support" type="button" role="tab">
+                    <i class="bi bi-chat-left-dots-fill me-1 text-cyan"></i> Чат поддержки <span class="badge bg-danger ms-1" id="adminUnreadTotalBadge" style="display:none;">0</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link btn-glass-tab px-4 py-2" id="tab-settings-btn" data-bs-toggle="pill" data-bs-target="#tab-settings" type="button" role="tab">
+                    <i class="bi bi-gear-fill me-1 text-white-50"></i> Настройки
+                </button>
+            </li>
+        </ul>
 
-            <!-- Protocol Breakdown -->
-            <div class="col-lg-5">
-                <div class="card-glass p-4 h-100">
-                    <h5 class="fw-bold text-white mb-1">Рабочие конфиги по протоколам</h5>
-                    <p class="text-white-50 small mb-4">Доля активных серверов</p>
-                    {% for proto, count in stats.proto_stats.items() %}
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="text-white-50 small text-uppercase">{{ proto }}</span>
-                            <span class="text-white small fw-semibold">{{ count }}</span>
-                        </div>
-                        <div class="progress" style="height:6px; background:rgba(255,255,255,0.05);">
-                            <div class="progress-bar" style="width: {{ (count / stats.working_configs * 100) if stats.working_configs > 0 else 0 }}%; background: linear-gradient(90deg,#22d3ee,#8b5cf6);"></div>
+        <!-- Tab Panes Content -->
+        <div class="tab-content" id="adminMainTabsContent">
+            
+            <!-- 1. OVERVIEW TAB -->
+            <div class="tab-pane fade show active" id="tab-overview" role="tabpanel">
+                <!-- KPI Cards -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-lg-3">
+                        <div class="admin-stat">
+                            <div class="stat-icon" style="background: rgba(34,211,238,0.15); color:#22d3ee;"><i class="bi bi-people-fill"></i></div>
+                            <div class="stat-value text-white">{{ stats.total_users }}</div>
+                            <div class="text-white-50 small">Всего пользователей</div>
                         </div>
                     </div>
-                    {% endfor %}
+                    <div class="col-6 col-lg-3">
+                        <div class="admin-stat">
+                            <div class="stat-icon" style="background: rgba(16,185,129,0.15); color:#10b981;"><i class="bi bi-lightning-charge-fill"></i></div>
+                            <div class="stat-value text-white">{{ stats.active_subs }}</div>
+                            <div class="text-white-50 small">Активных подписок ({{ stats.paid_subs }} платных)</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg-3">
+                        <div class="admin-stat">
+                            <div class="stat-icon" style="background: rgba(245,158,11,0.15); color:#f59e0b;"><i class="bi bi-cash-coin"></i></div>
+                            <div class="stat-value text-white">{{ stats.revenue_total }} ₽</div>
+                            <div class="text-white-50 small">Выручка всего · {{ stats.revenue_month }} ₽ за 30 дн.</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg-3">
+                        <div class="admin-stat">
+                            <div class="stat-icon" style="background: rgba(139,92,246,0.15); color:#8b5cf6;"><i class="bi bi-hdd-network-fill"></i></div>
+                            <div class="stat-value text-white">{{ stats.working_configs }}</div>
+                            <div class="text-white-50 small">Рабочих из {{ stats.total_configs }} серверов</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4 mb-4">
+                    <!-- Signup Trend -->
+                    <div class="col-lg-7">
+                        <div class="card-glass p-4 h-100">
+                            <h5 class="fw-bold text-white mb-1">Регистрации за 7 дней</h5>
+                            <p class="text-white-50 small mb-4">Количество новых пользователей по дням</p>
+                            {% set max_count = (stats.signup_trend | map(attribute='count') | max) or 1 %}
+                            <div class="mini-bar mb-2">
+                                {% for d in stats.signup_trend %}
+                                <div class="bar" style="height: {{ (d.count / max_count * 100) if max_count > 0 else 4 }}%;" title="{{ d.date }}: {{ d.count }}"></div>
+                                {% endfor %}
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                {% for d in stats.signup_trend %}
+                                <small class="text-white-50" style="flex:1; text-align:center;">{{ d.date }} ({{ d.count }})</small>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Protocol Breakdown -->
+                    <div class="col-lg-5">
+                        <div class="card-glass p-4 h-100">
+                            <h5 class="fw-bold text-white mb-1">Серверы по протоколам</h5>
+                            <p class="text-white-50 small mb-4">Распределение активных узлов</p>
+                            {% for proto, count in stats.proto_stats.items() %}
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span class="text-white-50 small text-uppercase">{{ proto }}</span>
+                                    <span class="text-white small fw-semibold">{{ count }}</span>
+                                </div>
+                                <div class="progress" style="height:6px; background:rgba(255,255,255,0.05);">
+                                    <div class="progress-bar" style="width: {{ (count / stats.working_configs * 100) if stats.working_configs > 0 else 0 }}%; background: linear-gradient(90deg,#22d3ee,#8b5cf6);"></div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="row g-4">
-            <!-- Recent Users -->
-            <div class="col-lg-6">
-                <div class="card-glass p-4 h-100">
-                    <h5 class="fw-bold text-white mb-3">Последние пользователи</h5>
+            <!-- 2. USERS MANAGEMENT TAB -->
+            <div class="tab-pane fade" id="tab-users" role="tabpanel">
+                <div class="card-glass p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+                        <h5 class="fw-bold text-white mb-0">Пользователи сервиса</h5>
+                        <form method="GET" action="/admin" class="d-flex gap-2">
+                            <input type="text" name="q" value="{{ search_query }}" class="form-control form-control-sm copy-field text-white" placeholder="Поиск по логину или email...">
+                            <button type="submit" class="btn btn-sm btn-glow-volt px-3">Найти</button>
+                            {% if search_query %}
+                            <a href="/admin#users" class="btn btn-sm btn-glass-secondary">Сбросить</a>
+                            {% endif %}
+                        </form>
+                    </div>
+
                     <div class="table-responsive">
-                        <table class="admin-table">
+                        <table class="admin-table table align-middle">
                             <thead>
-                                <tr><th>ID</th><th>Логин</th><th>Триал</th><th>Дата</th><th></th></tr>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Логин / Email</th>
+                                    <th>Telegram ID</th>
+                                    <th>Тариф</th>
+                                    <th>Осталось</th>
+                                    <th>Статус</th>
+                                    <th>Дата рег.</th>
+                                    <th>Действия</th>
+                                </tr>
                             </thead>
                             <tbody>
-                                {% for u in recent_users %}
+                                {% for u in users %}
+                                {% set active_sub = u.active_subscription() or u.latest_subscription() %}
                                 <tr>
-                                    <td class="text-white-50">{{ u.id }}</td>
-                                    <td class="text-white">{{ u.username }}{% if u.is_admin %} <span class="badge badge-neon-indigo">admin</span>{% endif %}</td>
-                                    <td>{% if u.is_trial_used %}<span class="text-warning">использован</span>{% else %}<span class="text-emerald">доступен</span>{% endif %}</td>
-                                    <td class="text-white-50">{{ u.created_at.strftime('%d.%m.%Y') }}</td>
+                                    <td class="text-white-50">#{{ u.id }}</td>
                                     <td>
-                                        <form method="POST" action="/admin/user/{{ u.id }}/toggle" class="m-0">
-                                            <button class="btn btn-glass-secondary btn-sm px-2 py-1" title="Вкл/выкл подписку">
-                                                <i class="bi bi-toggle-on"></i>
+                                        <div class="fw-bold text-white">{{ u.username }}</div>
+                                        <div class="small text-white-50">{{ u.email or '—' }}</div>
+                                        {% if u.is_admin %}<span class="badge badge-neon-indigo">Admin</span>{% endif %}
+                                    </td>
+                                    <td class="text-white-50">
+                                        {% if u.telegram_id %}<code>{{ u.telegram_id }}</code>{% else %}—{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if active_sub %}
+                                        <span class="badge badge-neon-indigo">{{ active_sub.plan }}</span>
+                                        {% else %}
+                                        <span class="text-white-50">Нет</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if active_sub and not active_sub.is_expired() and active_sub.is_active %}
+                                        <span class="text-emerald fw-semibold">{{ active_sub.time_left_str() }}</span>
+                                        {% else %}
+                                        <span class="text-danger small">Истекла</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <form method="POST" action="/admin/user/{{ u.id }}/toggle" class="m-0 d-inline">
+                                            <button type="submit" class="btn btn-sm {% if active_sub and active_sub.is_active and not active_sub.is_expired() %}btn-outline-success{% else %}btn-outline-secondary{% endif %} p-1 px-2" title="Включить/Выключить">
+                                                {% if active_sub and active_sub.is_active and not active_sub.is_expired() %}🟢 Активен{% else %}⚪ Неактивен{% endif %}
+                                            </button>
+                                        </form>
+                                    </td>
+                                    <td class="text-white-50 small">{{ u.created_at.strftime('%d.%m.%Y') }}</td>
+                                    <td>
+                                        <div class="dropdown">
+                                            <button class="btn btn-glass-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                Опции
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-dark">
+                                                <li><h6 class="dropdown-header">Продлить подписку</h6></li>
+                                                <li>
+                                                    <form method="POST" action="/admin/user/{{ u.id }}/extend" class="px-3 py-1">
+                                                        <input type="hidden" name="days" value="3">
+                                                        <input type="hidden" name="plan_name" value="Пробный период 3 дня">
+                                                        <button type="submit" class="btn btn-sm btn-link text-white text-decoration-none p-0">+ 3 дня бесплатно</button>
+                                                    </form>
+                                                </li>
+                                                <li>
+                                                    <form method="POST" action="/admin/user/{{ u.id }}/extend" class="px-3 py-1">
+                                                        <input type="hidden" name="days" value="30">
+                                                        <input type="hidden" name="plan_name" value="1 месяц">
+                                                        <button type="submit" class="btn btn-sm btn-link text-white text-decoration-none p-0">+ 1 месяц (30 дн.)</button>
+                                                    </form>
+                                                </li>
+                                                <li>
+                                                    <form method="POST" action="/admin/user/{{ u.id }}/extend" class="px-3 py-1">
+                                                        <input type="hidden" name="days" value="90">
+                                                        <input type="hidden" name="plan_name" value="3 месяца">
+                                                        <button type="submit" class="btn btn-sm btn-link text-white text-decoration-none p-0">+ 3 месяца (90 дн.)</button>
+                                                    </form>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <form method="POST" action="/admin/user/{{ u.id }}/set-admin" class="px-3 py-1">
+                                                        <button type="submit" class="btn btn-sm btn-link text-warning text-decoration-none p-0">
+                                                            {% if u.is_admin %}Отозвать права Admin{% else %}Назначить Admin{% endif %}
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                                {% if u.id != current_user.id %}
+                                                <li>
+                                                    <form method="POST" action="/admin/user/{{ u.id }}/delete" class="px-3 py-1" onsubmit="return confirm('Удалить пользователя {{ u.username }}?')">
+                                                        <button type="submit" class="btn btn-sm btn-link text-danger text-decoration-none p-0">Удалить аккаунт</button>
+                                                    </form>
+                                                </li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="8" class="text-white-50 text-center py-4">Пользователи не найдены</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. PAYMENTS TAB -->
+            <div class="tab-pane fade" id="tab-payments" role="tabpanel">
+                <div class="card-glass p-4">
+                    <h5 class="fw-bold text-white mb-4">История платежей</h5>
+                    <div class="table-responsive">
+                        <table class="admin-table table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Пользователь</th>
+                                    <th>Тариф</th>
+                                    <th>Сумма</th>
+                                    <th>Метод</th>
+                                    <th>ID транзакции</th>
+                                    <th>Статус</th>
+                                    <th>Дата</th>
+                                    <th>Действие</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in payments %}
+                                <tr>
+                                    <td class="text-white-50">#{{ p.id }}</td>
+                                    <td>
+                                        <div class="fw-bold text-white">{{ p.user.username if p.user else 'ID:' ~ p.user_id }}</div>
+                                    </td>
+                                    <td class="text-white">{{ p.plan }}</td>
+                                    <td class="text-white fw-semibold">{{ p.amount }} ₽</td>
+                                    <td>
+                                        <span class="badge {% if p.payment_method == 'yoomoney' %}badge-neon-emerald{% elif p.payment_method == 'platega' %}badge-neon-indigo{% else %}bg-secondary{% endif %}">
+                                            {{ p.payment_method }}
+                                        </span>
+                                    </td>
+                                    <td class="text-white-50 small"><code>{{ p.external_id or '—' }}</code></td>
+                                    <td>
+                                        {% if p.status == 'paid' %}
+                                        <span class="badge badge-neon-emerald">Оплачен</span>
+                                        {% elif p.status == 'canceled' %}
+                                        <span class="badge bg-danger">Отменён</span>
+                                        {% else %}
+                                        <span class="badge bg-warning text-dark">Ожидание</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-white-50 small">{{ p.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                                    <td>
+                                        {% if p.status != 'paid' %}
+                                        <form method="POST" action="/admin/payment/{{ p.id }}/confirm" class="m-0">
+                                            <button type="submit" class="btn btn-sm btn-glow-volt px-2 py-1" title="Подтвердить вручную">
+                                                Подтвердить
+                                            </button>
+                                        </form>
+                                        {% else %}
+                                        <span class="text-emerald small"><i class="bi bi-check-all"></i> Подтверждён</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="9" class="text-white-50 text-center py-4">Нет истории платежей</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. CONFIGS TAB -->
+            <div class="tab-pane fade" id="tab-configs" role="tabpanel">
+                <div class="card-glass p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+                        <div>
+                            <h5 class="fw-bold text-white mb-1">VPN Конфигурации и Серверы</h5>
+                            <p class="text-white-50 small mb-0">Всего: {{ stats.total_configs }} | Рабочих: <span class="text-emerald">{{ stats.working_configs }}</span> | Недоступно: <span class="text-danger">{{ stats.dead_configs }}</span></p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <form method="POST" action="/admin/configs/delete-dead" class="m-0" onsubmit="return confirm('Удалить все нерабочие серверы?')">
+                                <button type="submit" class="btn btn-glass-secondary btn-sm">
+                                    <i class="bi bi-trash3 text-danger me-1"></i> Удалить нерабочие
+                                </button>
+                            </form>
+                            <button class="btn btn-glow-volt btn-sm" data-bs-toggle="modal" data-bs-target="#addConfigModal">
+                                <i class="bi bi-plus-lg me-1"></i> Добавить серверы
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="admin-table table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Протокол</th>
+                                    <th>Локация</th>
+                                    <th>Хост : Порт</th>
+                                    <th>Пинг (TCP)</th>
+                                    <th>Статус</th>
+                                    <th>Проверено</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for c in configs %}
+                                <tr>
+                                    <td class="text-white-50">#{{ c.id }}</td>
+                                    <td>
+                                        <span class="badge badge-neon-indigo text-uppercase">{{ c.protocol }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="fs-5 me-1">{{ c.country_code | default('DE') }}</span>
+                                        <span class="text-white">{{ c.country or 'Германия' }}</span>
+                                    </td>
+                                    <td>
+                                        <code class="text-volt">{{ c.host or '—' }}:{{ c.port or 443 }}</code>
+                                    </td>
+                                    <td>
+                                        {% if c.latency_ms %}
+                                        <span class="text-emerald"><i class="bi bi-speedometer2 me-1"></i>{{ c.latency_ms | round }} ms</span>
+                                        {% else %}
+                                        <span class="text-white-50">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <form method="POST" action="/admin/configs/{{ c.id }}/toggle" class="m-0 d-inline">
+                                            <button type="submit" class="btn btn-sm {% if c.is_working %}btn-outline-success{% else %}btn-outline-danger{% endif %} p-1 px-2">
+                                                {% if c.is_working %}🟢 Рабочий{% else %}🔴 Недоступен{% endif %}
+                                            </button>
+                                        </form>
+                                    </td>
+                                    <td class="text-white-50 small">{{ c.checked_at.strftime('%d.%m %H:%M') if c.checked_at else '—' }}</td>
+                                    <td>
+                                        <form method="POST" action="/admin/configs/{{ c.id }}/delete" class="m-0 d-inline" onsubmit="return confirm('Удалить эту конфигурацию?')">
+                                            <button type="submit" class="btn btn-sm btn-glass-secondary text-danger p-1 px-2" title="Удалить">
+                                                <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
                                     </td>
                                 </tr>
                                 {% else %}
-                                <tr><td colspan="5" class="text-white-50 text-center py-3">Нет пользователей</td></tr>
+                                <tr><td colspan="8" class="text-white-50 text-center py-4">Нет конфигураций</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -122,39 +404,285 @@
                 </div>
             </div>
 
-            <!-- Recent Payments -->
-            <div class="col-lg-6">
-                <div class="card-glass p-4 h-100">
-                    <h5 class="fw-bold text-white mb-3">Последние платежи</h5>
-                    <div class="table-responsive">
-                        <table class="admin-table">
-                            <thead>
-                                <tr><th>ID</th><th>Тариф</th><th>Сумма</th><th>Метод</th><th>Статус</th></tr>
-                            </thead>
-                            <tbody>
-                                {% for p in recent_payments %}
-                                <tr>
-                                    <td class="text-white-50">{{ p.id }}</td>
-                                    <td class="text-white">{{ p.plan }}</td>
-                                    <td class="text-white">{{ p.amount }} ₽</td>
-                                    <td class="text-white-50">{{ p.payment_method }}</td>
-                                    <td>
-                                        {% if p.status == 'paid' %}
-                                        <span class="badge badge-neon-emerald">оплачен</span>
-                                        {% else %}
-                                        <span class="badge bg-secondary">{{ p.status }}</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% else %}
-                                <tr><td colspan="5" class="text-white-50 text-center py-3">Нет платежей</td></tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+            <!-- 5. REAL-TIME SUPPORT CHAT TAB -->
+            <div class="tab-pane fade" id="tab-support" role="tabpanel">
+                <div class="card-glass p-0 overflow-hidden" style="min-height: 600px;">
+                    <div class="row g-0">
+                        <!-- Left Pane: Conversations List -->
+                        <div class="col-md-4 border-end border-glass d-flex flex-column" style="height: 600px;">
+                            <div class="p-3 border-bottom border-glass d-flex justify-content-between align-items-center">
+                                <h6 class="fw-bold text-white mb-0"><i class="bi bi-chat-left-text-fill text-volt me-2"></i>Диалоги поддержки</h6>
+                                <button class="btn btn-sm btn-glass-secondary p-1 px-2" onclick="loadAdminChats()" title="Обновить"><i class="bi bi-arrow-clockwise"></i></button>
+                            </div>
+                            <div id="adminChatsList" class="flex-grow-1 overflow-auto p-2">
+                                <div class="text-center text-white-50 py-4 small">Загрузка диалогов...</div>
+                            </div>
+                        </div>
+
+                        <!-- Right Pane: Active Chat Conversation -->
+                        <div class="col-md-8 d-flex flex-column" style="height: 600px;">
+                            <div id="adminChatHeader" class="p-3 border-bottom border-glass d-flex justify-content-between align-items-center bg-dark">
+                                <div>
+                                    <span class="text-white fw-bold" id="adminChatTitle">Выберите диалог слева</span>
+                                    <span class="text-white-50 small ms-2" id="adminChatSubtitle"></span>
+                                </div>
+                            </div>
+
+                            <div id="adminChatMessages" class="flex-grow-1 overflow-auto p-3" style="background: rgba(5,6,10,0.4);">
+                                <div class="text-center text-white-50 py-5">
+                                    <i class="bi bi-chat-dots display-4 text-white-50 mb-2 d-block"></i>
+                                    Выберите обращение из списка для просмотра и ответа в реальном времени.
+                                </div>
+                            </div>
+
+                            <div class="p-3 border-top border-glass bg-dark" id="adminChatInputWrap" style="display:none;">
+                                <form id="adminReplyForm" onsubmit="sendAdminReply(event)" class="d-flex gap-2">
+                                    <input type="text" id="adminReplyText" class="form-control copy-field text-white" placeholder="Напишите ответ пользователю..." required autocomplete="off">
+                                    <button type="submit" class="btn btn-glow-volt px-4" id="adminSendReplyBtn">
+                                        <i class="bi bi-send-fill me-1"></i> Ответить
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <!-- 6. SETTINGS TAB -->
+            <div class="tab-pane fade" id="tab-settings" role="tabpanel">
+                <div class="card-glass p-4" style="max-width: 800px;">
+                    <h5 class="fw-bold text-white mb-4"><i class="bi bi-gear-wide-connected text-volt me-2"></i>Настройки платежей и сервиса</h5>
+                    <form method="POST" action="/admin/settings/save">
+                        <!-- YooMoney Settings -->
+                        <div class="p-3 rounded-4 bg-dark border border-glass mb-4">
+                            <h6 class="fw-bold text-white mb-2"><i class="bi bi-credit-card-2-front-fill text-emerald me-2"></i>YooMoney (Карты МИР / Visa / MC, СБП, ЮMoney)</h6>
+                            <p class="small text-white-50 mb-3">Приём платежей по токену / P2P на ваш кошелёк ЮMoney без юридического лица.</p>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-white-50 small">Номер кошелька YooMoney (Receiver)</label>
+                                <input type="text" name="yoomoney_receiver" value="{{ yoomoney_receiver }}" class="form-control copy-field text-white" placeholder="41001XXXXXXXXXXX">
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label text-white-50 small">OAuth Access Token YooMoney (для автопроверки оплаты)</label>
+                                <input type="password" name="yoomoney_token" value="{{ yoomoney_token }}" class="form-control copy-field text-white" placeholder="токен с правами operation-history">
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label text-white-50 small">Секрет для HTTP-уведомлений (Notification Secret, опционально)</label>
+                                <input type="password" name="yoomoney_secret" value="{{ yoomoney_secret }}" class="form-control copy-field text-white" placeholder="секрет из настроек уведомлений YooMoney">
+                            </div>
+                        </div>
+
+                        <!-- Support Contacts Settings -->
+                        <div class="p-3 rounded-4 bg-dark border border-glass mb-4">
+                            <h6 class="fw-bold text-white mb-2"><i class="bi bi-headset text-volt me-2"></i>Контакты службы поддержки</h6>
+                            <p class="small text-white-50 mb-3">Отображаются в онлайн-чате поддержки на сайте и в Telegram-боте.</p>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-white-50 small">Email поддержки</label>
+                                <input type="email" name="support_email" value="{{ support_contacts.email }}" class="form-control copy-field text-white" placeholder="support@voltavpn.net">
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label text-white-50 small">Telegram поддержки (@username)</label>
+                                <input type="text" name="support_telegram" value="{{ support_contacts.telegram }}" class="form-control copy-field text-white" placeholder="@voltavpn_support">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-glow-volt px-5 py-3">
+                            <i class="bi bi-check-lg me-1"></i> Сохранить настройки
+                        </button>
+                    </form>
+                </div>
+            </div>
+
         </div>
     </div>
 </section>
+
+<!-- Add Config Modal -->
+<div class="modal fade" id="addConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content card-glass border-0 text-white p-3 p-md-4">
+            <div class="modal-header border-0 pb-2">
+                <h5 class="fw-bold text-white mb-0"><i class="bi bi-plus-circle-fill text-volt me-2"></i>Добавить конфигурации VPN</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-3">
+                <form method="POST" action="/admin/configs/add">
+                    <div class="mb-3">
+                        <label class="form-label text-white-50 small">Один конфиг (URI VLESS / Trojan / SS / Hysteria2)</label>
+                        <input type="text" name="single_uri" class="form-control copy-field text-white" placeholder="vless://uuid@host:443?type=tcp&security=reality...#name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-white-50 small">Код страны (2 буквы, например DE, NL, US, FI - опционально)</label>
+                        <input type="text" name="country_code" class="form-control copy-field text-white" placeholder="DE" maxlength="4">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label text-white-50 small">Или список конфигов пачкой (по одному в строке)</label>
+                        <textarea name="batch_text" rows="5" class="form-control copy-field text-white" placeholder="vless://...&#10;trojan://...&#10;ss://..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-glow-volt w-100 py-3">Импортировать в базу данных</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Hash navigation support (e.g. /admin#configs)
+document.addEventListener('DOMContentLoaded', function() {
+    const hash = window.location.hash;
+    if (hash === '#users') {
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-users-btn')).show();
+    } else if (hash === '#payments') {
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-payments-btn')).show();
+    } else if (hash === '#configs') {
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-configs-btn')).show();
+    } else if (hash === '#support') {
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-support-btn')).show();
+        loadAdminChats();
+    } else if (hash === '#settings') {
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-settings-btn')).show();
+    }
+
+    // Load admin chats on tab click
+    document.getElementById('tab-support-btn').addEventListener('shown.bs.tab', function () {
+        loadAdminChats();
+        startAdminChatPolling();
+    });
+});
+
+let currentActiveSession = null;
+let adminChatPollTimer = null;
+
+function loadAdminChats() {
+    fetch('/api/admin/support/chats')
+        .then(r => r.json())
+        .then(data => {
+            const listEl = document.getElementById('adminChatsList');
+            const chats = data.chats || [];
+            let unreadTotal = 0;
+
+            if (chats.length === 0) {
+                listEl.innerHTML = '<div class="text-center text-white-50 py-4 small">Нет обращений в поддержку</div>';
+                return;
+            }
+
+            let html = '';
+            chats.forEach(c => {
+                unreadTotal += c.unread_count || 0;
+                const isActive = currentActiveSession === c.session_id ? 'active' : '';
+                const unreadBadge = c.unread_count > 0 ? `<span class="badge bg-danger ms-auto">${c.unread_count}</span>` : '';
+                html += `
+                    <div class="admin-chat-item p-2 px-3 rounded-3 mb-1 ${isActive}" onclick="selectAdminChat('${c.session_id}', '${escapeHtml(c.user_name)}')">
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <span class="fw-bold text-white small">${escapeHtml(c.user_name)}</span>
+                            <span class="text-white-50 small" style="font-size:0.75rem;">${c.last_time}</span>
+                        </div>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="small text-white-50 text-truncate" style="max-width: 190px;">${escapeHtml(c.last_message)}</div>
+                            ${unreadBadge}
+                        </div>
+                    </div>
+                `;
+            });
+
+            listEl.innerHTML = html;
+
+            const badge = document.getElementById('adminUnreadTotalBadge');
+            if (unreadTotal > 0) {
+                badge.innerText = unreadTotal;
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
+
+            if (currentActiveSession) {
+                loadAdminMessages(currentActiveSession);
+            }
+        })
+        .catch(e => console.log('Admin chats load error:', e));
+}
+
+function selectAdminChat(sessionId, userName) {
+    currentActiveSession = sessionId;
+    document.getElementById('adminChatTitle').innerText = userName;
+    document.getElementById('adminChatSubtitle').innerText = `(ID: ${sessionId})`;
+    document.getElementById('adminChatInputWrap').style.display = 'block';
+
+    // Highlight item
+    document.querySelectorAll('.admin-chat-item').forEach(el => el.classList.remove('active'));
+    loadAdminMessages(sessionId);
+}
+
+function loadAdminMessages(sessionId) {
+    if (!sessionId) return;
+    fetch(`/api/admin/support/messages/${encodeURIComponent(sessionId)}`)
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('adminChatMessages');
+            const messages = data.messages || [];
+
+            let html = '';
+            messages.forEach(m => {
+                const isAdmin = m.sender_type === 'admin';
+                const bubbleClass = isAdmin ? 'msg-admin' : 'msg-user';
+                const senderLabel = isAdmin ? '🛡️ Вы (Админ)' : (m.sender_name || 'Пользователь');
+                html += `
+                    <div class="chat-bubble-wrap ${bubbleClass}">
+                        <div class="chat-bubble">
+                            <div class="bubble-header small">${senderLabel} <span class="bubble-time">${m.time_short || ''}</span></div>
+                            <div class="bubble-text">${escapeHtml(m.text)}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            container.scrollTop = container.scrollHeight;
+        })
+        .catch(e => console.log('Error loading messages:', e));
+}
+
+function sendAdminReply(e) {
+    e.preventDefault();
+    if (!currentActiveSession) return;
+
+    const input = document.getElementById('adminReplyText');
+    const text = input.value.trim();
+    if (!text) return;
+
+    const btn = document.getElementById('adminSendReplyBtn');
+    btn.disabled = true;
+
+    fetch('/api/admin/support/reply', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            session_id: currentActiveSession,
+            text: text
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        input.value = '';
+        loadAdminMessages(currentActiveSession);
+        loadAdminChats();
+    })
+    .catch(err => {
+        btn.disabled = false;
+        console.log('Error sending reply:', err);
+    });
+}
+
+function startAdminChatPolling() {
+    if (adminChatPollTimer) clearInterval(adminChatPollTimer);
+    adminChatPollTimer = setInterval(loadAdminChats, 3000);
+}
+</script>
 {% endblock %}

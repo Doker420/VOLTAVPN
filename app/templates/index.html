@@ -7,39 +7,39 @@
         <div class="row align-items-center g-5">
             <div class="col-lg-7">
                 <div class="d-inline-flex align-items-center badge-neon-emerald mb-4">
-                    <span class="pulse-indicator me-2"></span> Автопроверка и автообновление каждый час
+                    <span class="pulse-indicator me-2"></span> Автопроверка и автообновление каждый час · 3 дня бесплатно
                 </div>
                 <h1 class="hero-title mb-4">
                     VOLTA — VPN, который <br>
                     <span class="text-gradient">подключается в один тап</span>
                 </h1>
                 <p class="fs-5 text-white-50 mb-5 leading-relaxed" style="max-width: 600px;">
-                    Коллекция автоматически проверенных VPN-конфигураций (VLESS, Trojan, Shadowsocks, Hysteria2, VMess, Tuic), оптимизированных для работы на территории Российской Федерации. Мгновенный импорт в ваше приложение.
+                    Коллекция автоматически проверенных быстрых VPN-конфигураций (VLESS Reality, Trojan, Shadowsocks, Hysteria2), оптимизированных для стабильной работы на территории Российской Федерации.
                 </p>
                 <div class="d-flex flex-wrap gap-3 mb-5">
                     {% if current_user.is_authenticated %}
                         <a href="/dashboard" class="btn btn-glow-volt btn-lg px-4 py-3">
-                            <i class="bi bi-lightning-charge-fill me-2"></i> Мгновенное подключение
+                            <i class="bi bi-lightning-charge-fill me-2"></i> Мой личный кабинет
                         </a>
                     {% else %}
-                        <a href="/quick-start" class="btn btn-glow-volt btn-lg px-4 py-3">
-                            <i class="bi bi-gift-fill me-2"></i> 30 дней бесплатно за 5 друзей
-                        </a>
+                        <button class="btn btn-glow-volt btn-lg px-4 py-3" onclick="openAuthModal('register')">
+                            <i class="bi bi-gift-fill me-2"></i> Попробовать 3 дня бесплатно
+                        </button>
                     {% endif %}
                     <a href="#pricing" class="btn btn-glass-secondary btn-lg px-4 py-3">
-                        <i class="bi bi-grid-fill me-2"></i> Тарифы
+                        <i class="bi bi-grid-fill me-2"></i> Тарифные планы
                     </a>
                 </div>
                 
                 <div class="d-flex flex-wrap gap-4 text-white-50 small">
                     <div class="d-flex align-items-center gap-2">
-                        <i class="bi bi-check-circle-fill text-success fs-5"></i> Пригласи 5 друзей — 30 дней бесплатно
+                        <i class="bi bi-check-circle-fill text-success fs-5"></i> 3 дня бесплатно при регистрации
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        <i class="bi bi-check-circle-fill text-success fs-5"></i> Импорт в любой клиент
+                        <i class="bi bi-check-circle-fill text-success fs-5"></i> Мгновенный импорт в Karing, v2rayN, Streisand
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        <i class="bi bi-check-circle-fill text-success fs-5"></i> Автообновление серверов
+                        <i class="bi bi-check-circle-fill text-success fs-5"></i> Автообновление серверов по подписке
                     </div>
                 </div>
             </div>
@@ -49,7 +49,7 @@
                 <div class="card-glass p-4 p-md-5">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div>
-                            <h5 class="fw-bold text-white mb-0">Мониторинг конфигов</h5>
+                            <h5 class="fw-bold text-white mb-0">Мониторинг серверов</h5>
                             <small class="text-white-50">Проверено по TCP / Ping</small>
                         </div>
                         <span class="badge-neon-indigo" id="lastUpdated">
@@ -66,7 +66,7 @@
                         </div>
                         <div class="col-6">
                             <div class="stat-box">
-                                <small class="text-white-50 d-block mb-1">VLESS / Reality</small>
+                                <small class="text-white-50 d-block mb-1">VLESS Reality</small>
                                 <span class="fs-3 fw-bold text-indigo" id="statVless">{{ stats.vless }}</span>
                             </div>
                         </div>
@@ -87,7 +87,7 @@
                     <div class="p-3 rounded-4 bg-dark border border-glass d-flex align-items-center gap-3">
                         <i class="bi bi-arrow-repeat text-emerald fs-4"></i>
                         <div class="small text-white-50">
-                            Подписка автоматически генерирует персональный фид, отбирая только сервера с лучшим откликом.
+                            Подписка автоматически генерирует персональный фид, доставляя только активные серверы с минимальным откликом.
                         </div>
                     </div>
                 </div>
@@ -131,7 +131,7 @@
         <div class="text-center mb-5" style="max-width: 600px; margin: 0 auto;">
             <div class="badge-neon-indigo mb-2">Прозрачные цены</div>
             <h2 class="hero-title fs-2 text-white">Выбор тарифного плана</h2>
-            <p class="text-white-50">Получите полный доступ к первичному автообновляемому фиду подписок</p>
+            <p class="text-white-50">Получите мгновенный доступ к автообновляемому фиду подписок</p>
         </div>
 
         <div class="row g-4 justify-content-center">
@@ -143,14 +143,14 @@
                             {{ plan.badge }}
                         </span>
                         {% if plan_id == 'free_trial' %}
-                        <span class="badge bg-success text-white">ХИТ</span>
+                        <span class="badge bg-success text-white">БЕСПЛАТНО</span>
                         {% endif %}
                     </div>
 
                     <h4 class="fw-bold text-white mb-2">{{ plan.name }}</h4>
                     <div class="d-flex align-items-baseline mb-4">
                         <span class="fs-1 fw-bold text-white me-2">{{ plan.price if plan.price > 0 else '0' }}</span>
-                        <span class="text-white-50 fs-5">{% if plan.price > 0 %}₽ / за период{% else %}₽ (30 дней){% endif %}</span>
+                        <span class="text-white-50 fs-5">{% if plan.price > 0 %}₽ / за период{% else %}₽ (3 дня){% endif %}</span>
                     </div>
 
                     <ul class="list-unstyled mb-5 d-flex flex-column gap-3 flex-grow-1">
@@ -158,25 +158,27 @@
                             <i class="bi bi-check2-circle text-emerald fs-5"></i> Автоматическая проверка задержки (Ping)
                         </li>
                         <li class="d-flex align-items-center gap-2 text-white-50">
-                            <i class="bi bi-check2-circle text-emerald fs-5"></i> Поддержка всех клиентов (Karing, v2rayN)
+                            <i class="bi bi-check2-circle text-emerald fs-5"></i> Поддержка всех клиентов (Karing, v2rayN, Streisand)
                         </li>
                         <li class="d-flex align-items-center gap-2 text-white-50">
-                            <i class="bi bi-check2-circle text-emerald fs-5"></i> Поддержка VLESS, Trojan, SS, Hysteria2
+                            <i class="bi bi-check2-circle text-emerald fs-5"></i> Поддержка VLESS Reality, Trojan, SS, Hysteria2
                         </li>
                         <li class="d-flex align-items-center gap-2 text-white-50">
-                            <i class="bi bi-check2-circle text-emerald fs-5"></i> Персональная ссылка & QR-код
+                            <i class="bi bi-check2-circle text-emerald fs-5"></i> Персональная ссылка & QR-код с автообновлением
                         </li>
                     </ul>
 
                     {% if current_user.is_authenticated %}
                         <a href="/subscribe/{{ plan_id }}" class="btn {% if plan_id == 'free_trial' %}btn-glow-volt{% else %}btn-glow-primary{% endif %} w-100 py-3">
-                            {% if plan_id == 'free_trial' %}Активировать 30 дней{% else %}Купить подписку{% endif %}
+                            {% if plan_id == 'free_trial' %}Активировать 3 дня бесплатно{% else %}Оформить за {{ plan.price }} ₽{% endif %}
                         </a>
                     {% else %}
                         {% if plan_id == 'free_trial' %}
-                        <a href="/quick-start" class="btn btn-glow-volt w-100 py-3">Активировать 30 дней</a>
+                        <button class="btn btn-glow-volt w-100 py-3" onclick="openAuthModal('register')">
+                            Получить 3 дня бесплатно
+                        </button>
                         {% else %}
-                        <button class="btn btn-glow-primary w-100 py-3" data-bs-toggle="modal" data-bs-target="#loginModal">
+                        <button class="btn btn-glow-primary w-100 py-3" onclick="openAuthModal('register')">
                             Купить подписку
                         </button>
                         {% endif %}
@@ -193,7 +195,7 @@
     <div class="container">
         <div class="text-center mb-5">
             <h2 class="hero-title fs-2 text-white">Простая настройка за 1 минуту</h2>
-            <p class="text-white-50">Импортируйте персональную ссылку подписки в удобное для вас приложение</p>
+            <p class="text-white-50">Импортируйте персональную ссылку подписки в удобное приложение</p>
         </div>
 
         <div class="row g-4 justify-content-center">
@@ -224,69 +226,10 @@
         </div>
     </div>
 </section>
-
-<!-- Login / Register Modal -->
-<div class="modal fade" id="loginModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content card-glass border-0 text-white p-3">
-            <div class="modal-header border-0 pb-0">
-                <ul class="nav nav-pills gap-2" id="authTabs">
-                    <li class="nav-item">
-                        <button class="nav-link active btn-glass-secondary px-4 py-2" data-bs-toggle="pill" data-bs-target="#loginTab">Вход</button>
-                    </li>
-                   <!--> <li class="nav-item">
-                     <button class="nav-link btn-glass-secondary px-4 py-2" data-bs-toggle="pill" data-bs-target="#registerTab">Регистрация</button>
-                    </li>
-                </ul>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div><-->
-            <div class="modal-body">
-                <div class="tab-content pt-3">
-                    <!-- Login Form -->
-                    <div class="tab-pane fade show active" id="loginTab">
-                        <form method="POST" action="/login">
-                            <div class="mb-3">
-                                <label class="form-label text-white-50 small">Имя пользователя</label>
-                                <input type="text" name="username" class="form-control copy-field text-white px-3 py-2" required placeholder="Введите логин">
-                            </div>
-                            <div class="mb-4">
-                                <label class="form-label text-white-50 small">Пароль</label>
-                                <input type="password" name="password" class="form-control copy-field text-white px-3 py-2" required placeholder="••••••••">
-                            </div>
-                            <button type="submit" class="btn btn-glow-volt w-100 py-3">Войти в аккаунт</button>
-                        </form>
-                    </div>
-                    <!-- Register Form -->
-                    <div class="tab-pane fade" id="registerTab">
-                        <form method="POST" action="/register">
-                            <div class="mb-2">
-                                <label class="form-label text-white-50 small">Имя пользователя</label>
-                                <input type="text" name="username" class="form-control copy-field text-white px-3 py-2" required placeholder="Придумайте логин">
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label text-white-50 small">Email (необязательно)</label>
-                                <input type="email" name="email" class="form-control copy-field text-white px-3 py-2" placeholder="name@example.com">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label text-white-50 small">Пароль</label>
-                                <input type="password" name="password" class="form-control copy-field text-white px-3 py-2" required placeholder="••••••••">
-                            </div>
-                            <div class="alert card-glass border-0 text-white-50 small mb-3">
-                                <i class="bi bi-telegram text-volt me-1"></i> После регистрации нужно привязать Telegram — только так выдаётся бесплатный период (защита от накрутки).
-                            </div>
-                            <button type="submit" class="btn btn-glow-primary w-100 py-3">Создать аккаунт и привязать Telegram</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-// Auto refresh stats
 function updateStats() {
     fetch('/api/stats')
         .then(r => r.json())

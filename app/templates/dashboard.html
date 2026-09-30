@@ -10,7 +10,7 @@
                 <i class="bi bi-rocket-takeoff-fill text-volt fs-3"></i>
                 <h3 class="fw-bold text-white mb-0">Быстрый старт за 3 шага</h3>
             </div>
-            <p class="text-white-50 mb-4">Ваш бесплатный доступ на 30 дней уже активирован. Подключитесь прямо сейчас:</p>
+            <p class="text-white-50 mb-4">Ваш доступ на 3 дня активирован. Подключитесь прямо сейчас:</p>
             <div class="row g-3">
                 <div class="col-md-4">
                     <div class="p-3 rounded-4 bg-dark border border-glass h-100">
@@ -43,7 +43,7 @@
                     </div>
                 </div>
             </div>
-            <div class="mt-3">
+            <div class="mt-4">
                 <a href="#connect-now" class="btn btn-glow-volt px-4"><i class="bi bi-lightning-charge-fill me-1"></i> Подключиться сейчас</a>
             </div>
         </div>
@@ -52,8 +52,8 @@
         <!-- Header -->
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
             <div>
-                <h2 class="hero-title fs-2 text-white mb-1">Подключение</h2>
-                <p class="text-white-50 mb-0">Мгновенный импорт подписки и управление тарифом</p>
+                <h2 class="hero-title fs-2 text-white mb-1">Личный кабинет</h2>
+                <p class="text-white-50 mb-0">Мгновенный импорт подписки и управление серверами</p>
             </div>
             <div class="d-flex gap-2">
                 <a href="#pricing-options" class="btn btn-glow-volt btn-sm px-4 py-2">
@@ -64,7 +64,8 @@
 
         {% if sub %}
         <div class="row g-4 mb-5">
-            <!-- Active Subscription Card -->            <div class="col-lg-7">
+            <!-- Active Subscription Card -->
+            <div class="col-lg-7">
                 <div class="card-glass p-4 p-md-5 h-100 {% if not sub.is_expired() %}card-highlight{% endif %}">
                     <div class="d-flex justify-content-between align-items-start mb-4">
                         <div>
@@ -72,19 +73,19 @@
                                 {% if not sub.is_expired() %}🟢 Активна{% else %}🔴 Истекла{% endif %}
                             </span>
                             <h3 class="fw-bold text-white mb-1">{{ plans[sub.plan].name if sub.plan in plans else sub.plan }}</h3>
-                            <small class="text-white-50">Создано: {{ sub.created_at.strftime('%d.%m.%Y') }}</small>
+                            <small class="text-white-50">Активировано: {{ sub.created_at.strftime('%d.%m.%Y') }}</small>
                         </div>
                         <div class="text-end">
-                            <span class="fs-1 fw-bold {% if not sub.is_expired() %}text-emerald{% else %}text-danger{% endif %}">
-                                {{ sub.days_left() }}
+                            <span class="fs-2 fw-bold {% if not sub.is_expired() %}text-emerald{% else %}text-danger{% endif %}">
+                                {{ sub.time_left_str() }}
                             </span>
-                            <span class="d-block text-white-50 small">дней осталось</span>
+                            <span class="d-block text-white-50 small">до окончания</span>
                         </div>
                     </div>
 
                     <!-- Subscription URL Copy Box -->
                     <div class="mb-4">
-                        <label class="form-label text-white-50 small fw-medium">Ваша персональная ссылка подписки (для клиентов)</label>
+                        <label class="form-label text-white-50 small fw-medium">Ваша персональная ссылка подписки (для приложений)</label>
                         <div class="input-group">
                             <input type="text" id="subUrlInput" class="form-control copy-field text-white px-3 py-3" value="{{ sub.config_link }}" readonly>
                             <button class="btn btn-glow-primary px-4" onclick="copySubUrl()">
@@ -92,7 +93,7 @@
                             </button>
                         </div>
                         <div class="form-text text-white-50 small mt-2">
-                            <i class="bi bi-info-circle text-emerald me-1"></i> Вставьте эту ссылку в Karing, v2rayN или Streisand. Автообновление конфигов происходить автоматически.
+                            <i class="bi bi-info-circle text-emerald me-1"></i> Вставьте ссылку в Karing, v2rayN или Streisand. Автообновление серверов происходит автоматически.
                         </div>
                     </div>
 
@@ -116,7 +117,7 @@
                     <h5 class="fw-bold text-white mb-3">QR-код для импорта</h5>
                     {% if sub.qr_code_path %}
                     <div class="p-3 bg-white rounded-4 shadow-sm mb-3">
-                        <img src="{{ url_for('static', filename=sub.qr_code_path.replace('qr/', 'qr/')) }}" alt="QR Code" class="img-fluid" style="max-width: 180px;">
+                        <img src="{{ url_for('static', filename=sub.qr_code_path) }}" alt="QR Code" class="img-fluid" style="max-width: 180px;">
                     </div>
                     <p class="small text-white-50 mb-0">Отсканируйте камерой смартфона в Karing / Streisand</p>
                     {% else %}
@@ -150,62 +151,16 @@
         {% endif %}
         {% endif %}
 
-        <!-- Referral / unlock free trial -->
-        {% if ref_info %}
-        <div class="card-glass p-4 p-md-5 mb-5" id="referral">
-            <div class="d-flex align-items-center gap-2 mb-1">
-                <i class="bi bi-gift-fill text-volt fs-4"></i>
-                <h4 class="fw-bold text-white mb-0">
-                    {% if sub %}Приглашайте друзей{% else %}Получите 30 дней бесплатно{% endif %}
-                </h4>
-            </div>
-            {% if not sub %}
-            <p class="text-white-50 mb-3">
-                Пригласите <b>{{ ref_info.required }} друзей</b> — как только они запустят бота по вашей ссылке,
-                бесплатный период на 30 дней активируется автоматически.
-            </p>
-            {% else %}
-            <p class="text-white-50 mb-3">Делитесь VOLTA с друзьями по своей персональной ссылке.</p>
-            {% endif %}
-
-            <!-- Progress -->
-            <div class="d-flex align-items-center gap-2 mb-3">
-                <div class="flex-grow-1">
-                    <div class="progress" style="height:10px; background:rgba(255,255,255,0.06);">
-                        <div class="progress-bar" role="progressbar"
-                             style="width: {{ (ref_info.count / ref_info.required * 100) if ref_info.required else 0 }}%; background: linear-gradient(90deg,#22d3ee,#8b5cf6);"></div>
-                    </div>
-                </div>
-                <span class="badge badge-neon-emerald">{{ ref_info.count }}/{{ ref_info.required }}</span>
-            </div>
-
-            <div class="input-group mb-3">
-                <input type="text" id="refLinkInput" class="form-control copy-field text-white px-3 py-3" value="{{ ref_info.ref_link }}" readonly>
-                <button class="btn btn-glass-secondary px-4" onclick="copyRefLink()">
-                    <i class="bi bi-clipboard me-1"></i><span id="refCopyText">Копировать</span>
-                </button>
-            </div>
-
-            <a href="{{ ref_info.share_url }}" target="_blank" class="btn btn-glow-volt w-100 py-3">
-                <i class="bi bi-send-fill me-2"></i> Поделиться с друзьями (текст готов)
-            </a>
-            {% if not sub and ref_info.remaining > 0 %}
-            <p class="small text-white-50 text-center mt-3 mb-0">
-                Осталось пригласить: <b>{{ ref_info.remaining }}</b>. Доступ откроется автоматически.
-            </p>
-            {% endif %}
-        </div>
-        {% endif %}
         {% if countries %}
         <div class="card-glass p-4 p-md-5 mb-5">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-globe2 text-volt fs-4"></i>
-                    <h4 class="fw-bold text-white mb-0">Серверы по странам</h4>
+                    <h4 class="fw-bold text-white mb-0">Доступные локации серверов</h4>
                 </div>
                 <span class="badge badge-neon-indigo">Проверка пинга каждый час</span>
             </div>
-            <p class="text-white-50 mb-4">В подписке серверы сгруппированы по странам и отсортированы по скорости отклика. Выбирайте ближайшую страну с минимальным пингом.</p>
+            <p class="text-white-50 mb-4">В подписке серверы сгруппированы по странам и отсортированы по скорости отклика.</p>
             <div class="row g-3">
                 {% for c in countries %}
                 <div class="col-6 col-md-4 col-lg-3">
@@ -227,7 +182,7 @@
 
         <!-- Quick Setup Instructions Tab -->
         <div class="card-glass p-4 p-md-5 mb-5" id="guides">
-            <h4 class="fw-bold text-white mb-4"><i class="bi bi-gear-wide-connected text-emerald me-2"></i> Быстрый запуск подписки</h4>
+            <h4 class="fw-bold text-white mb-4"><i class="bi bi-gear-wide-connected text-emerald me-2"></i> Инструкции по настройке</h4>
             
             <ul class="nav nav-pills gap-2 mb-4" id="setupTabs">
                 <li class="nav-item">
@@ -244,7 +199,7 @@
             <div class="tab-content text-white-50">
                 <div class="tab-pane fade show active" id="tabIOS">
                     <ol class="lh-lg mb-0">
-                        <li>Установите приложение <a href="https://apps.apple.com/app/karing/id6472431552" target="_blank" class="text-emerald fw-semibold">Karing</a> или <a href="https://apps.apple.com/app/streisand/id6450534064" target="_blank" class="text-indigo fw-semibold">Streisand</a> из App Store.</li>
+                        <li>Установите бесплатное приложение <a href="https://apps.apple.com/app/karing/id6472431552" target="_blank" class="text-emerald fw-semibold">Karing</a> или <a href="https://apps.apple.com/app/streisand/id6450534064" target="_blank" class="text-indigo fw-semibold">Streisand</a> из App Store.</li>
                         <li>Нажмите кнопку <strong>«Копировать»</strong> выше или отсканируйте QR-код.</li>
                         <li>В приложении перейдите в раздел <strong>«Подписки / Subscriptions»</strong> → <strong>«Добавить»</strong>.</li>
                         <li>Вставьте скопированную ссылку и нажмите <strong>«Подключить»</strong>.</li>
@@ -260,7 +215,7 @@
                 </div>
                 <div class="tab-pane fade" id="tabWindows">
                     <ol class="lh-lg mb-0">
-                        <li>Скачайте и запустите <a href="https://github.com/2dust/v2rayN/releases" target="_blank" class="text-indigo fw-semibold">v2rayN</a>.</li>
+                        <li>Скачайте и запустите <a href="https://github.com/2dust/v2rayN/releases" target="_blank" class="text-indigo fw-semibold">v2rayN</a> или <a href="https://hiddify.com/" target="_blank" class="text-indigo fw-semibold">Hiddify</a>.</li>
                         <li>Перейдите в раздел <strong>«Subscription setting» (Настройка подписки)</strong>.</li>
                         <li>Нажмите <strong>«Add» (Добавить)</strong> и вставьте вашу ссылку.</li>
                         <li>Нажмите <strong>«Update subscription without proxy»</strong> в меню подписки.</li>
@@ -271,7 +226,7 @@
 
         <!-- Tariff Renewal Grid -->
         <div id="pricing-options">
-            <h4 class="fw-bold text-white mb-4"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> Пролонгация и Тарифы</h4>
+            <h4 class="fw-bold text-white mb-4"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> Продление подписки</h4>
             <div class="row g-4">
                 {% for plan_id, plan in plans.items() %}
                 {% if plan_id != 'free_trial' %}
@@ -307,16 +262,6 @@ function copySubUrl() {
             copyText.innerText = 'Копировать';
             copyIcon.className = 'bi bi-clipboard';
         }, 2500);
-    });
-}
-
-function copyRefLink() {
-    const input = document.getElementById('refLinkInput');
-    if (!input) return;
-    input.select();
-    navigator.clipboard.writeText(input.value).then(() => {
-        const t = document.getElementById('refCopyText');
-        if (t) { t.innerText = 'Скопировано!'; setTimeout(() => { t.innerText = 'Копировать'; }, 2500); }
     });
 }
 </script>
