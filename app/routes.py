@@ -290,7 +290,7 @@ def build_deep_links(sub_url):
     return {
         'v2rayng': f"v2rayng://install-sub?url={enc}&name={name}",
         'hiddify': f"hiddify://import/{enc}#{name}",
-        'streisand': f"streisand://import/{enc}",
+        'streisand': f"streisand://import/{feed_url}",
         'karing': f"karing://install-config?url={enc}&name={name}",
         'clash': f"clash://install-config?url={enc}&name={name}",
         'singbox': f"sing-box://import-remote-profile?url={enc}#{name}",
