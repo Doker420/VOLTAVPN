@@ -88,7 +88,11 @@ def main():
     args = parser.parse_args()
 
     xui_url = need("XUI_URL")
-    token = need("XUI_API_TOKEN")
+    token = os.getenv("XUI_API_TOKEN", "").strip()
+    xui_user = os.getenv("XUI_USER", "").strip()
+    xui_password = os.getenv("XUI_PASSWORD", "").strip()
+    if not token and not (xui_user and xui_password):
+        raise SystemExit("Задайте XUI_API_TOKEN или XUI_USER и XUI_PASSWORD")
     parsed = urlparse(xui_url)
     host = parsed.hostname
     if not host:
@@ -97,10 +101,16 @@ def main():
     session = requests.Session()
     session.verify = os.getenv("XUI_VERIFY_TLS", "0").lower() in {"1", "true", "yes"}
     session.headers.update({
-        "Authorization": f"Bearer {token}",
         "Accept": "application/json",
         "Content-Type": "application/json",
     })
+    if token:
+        session.headers["Authorization"] = f"Bearer {token}"
+    else:
+        check(session.post(url(xui_url, "/login"), json={
+            "username": xui_user,
+            "password": xui_password,
+        }, timeout=20), "авторизация в 3X-UI")
 
     cert = check(
         session.get(url(xui_url, "/panel/api/server/getNewX25519Cert"), timeout=20),
