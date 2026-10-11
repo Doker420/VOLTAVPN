@@ -817,8 +817,13 @@ def get_working_configs(protocol=None, limit=25):
 
         # A manually selected primary node always gets the first scan/feed slot,
         # while the remaining nodes keep the normal latency ordering.
+        # Own/admin nodes must be preferred over the public free pool. The
+        # explicitly primary node remains first; other imported private nodes
+        # follow before open-source collector entries.
+        private_node = Config.source_url.like('admin%')
         all_candidates = query.order_by(
-            Config.is_primary.desc(), Config.latency_ms.asc(), Config.checked_at.desc()
+            Config.is_primary.desc(), private_node.desc(),
+            Config.latency_ms.asc(), Config.checked_at.desc()
         ).limit(150).all()
 
         selected = []
